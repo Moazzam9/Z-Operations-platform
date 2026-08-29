@@ -133,6 +133,7 @@ view = st.sidebar.radio("Independent Toolkit Menu", [
     "💬 Role WhatsApp Mailer",
     "💬 CSV WhatsApp Invites",
     "🔲 Certificate QR Generator",
+    "🧹 CSV Deduplicator & Formatter",
     "⚙️ Portal Settings"
 ])
 
@@ -953,7 +954,195 @@ elif view == "🔲 Certificate QR Generator":
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# VIEW 7 – PORTAL SETTINGS
+# VIEW 7 – CSV DEDUPLICATOR & FORMATTER
+# ═════════════════════════════════════════════════════════════════════════════
+elif view == "🧹 CSV Deduplicator & Formatter":
+    st.markdown("<h1 class='main-header'>CSV Deduplicator & Formatter</h1>", unsafe_allow_html=True)
+    st.write(
+        "Upload a CSV file. This tool will format the columns and remove duplicate records "
+        "based on **Email Address** or **Phone Number**, keeping the most complete entry."
+    )
+
+    uploaded_csv = st.file_uploader("Upload Raw CSV", type=[".csv"], key="dedup_csv")
+
+    if uploaded_csv:
+        try:
+            df = parse_and_clean_csv(uploaded_csv)
+            
+            # Identify columns robustly, prioritizing the order of possible_names
+            def find_col(possible_names):
+                for name in possible_names:
+                    for col in df.columns:
+                        if str(col).strip().lower() == name.lower():
+                            return col
+                return None
+
+            name_col = find_col(["Full Name", "Name", "Candidate Name", "First Name"])
+            email_col = find_col(["Email Address", "Email", "Email ID"])
+            phone_col = find_col(["Phone Number (WhatsApp)", "Phone Number", "Phone", "WhatsApp Number", "WhatsApp", "Contact", "Contact Number"])
+            role_col = find_col(["Internship Role", "Role", "Position", "Applied For", "Domain", "Course", "Internship Domain", "Program", "Track"])
+            id_col = find_col(["Offer Letter ID", "Registration ID", "Internship ID", "ID", "Candidate ID", "Intern ID"])
+
+            if not name_col and not email_col:
+                st.error("Could not confidently find 'Full Name' or 'Email Address' columns. Please check your CSV headers.")
+            else:
+                rename_map = {}
+                if name_col: rename_map[name_col] = "Full Name"
+                if email_col: rename_map[email_col] = "Email Address"
+                if phone_col: rename_map[phone_col] = "Phone Number (WhatsApp)"
+                if role_col: rename_map[role_col] = "Internship Role"
+                if id_col: rename_map[id_col] = "Internship ID"
+                
+                df = df.rename(columns=rename_map)
+                
+                std_cols = ["Full Name", "Email Address", "Phone Number (WhatsApp)", "Internship Role", "Internship ID"]
+                for c in std_cols:
+                    if c not in df.columns:
+                        df[c] = ""
+                
+                df_std = df[std_cols].copy()
+                
+                # String conversion and NaN handling
+                for c in std_cols:
+                    df_std[c] = df_std[c].astype(str).str.strip().replace({'nan': '', 'None': ''})
+                
+                # Match and format Internship Role
+                def map_internship_role(raw_role):
+                    r = str(raw_role).lower()
+                    if not r: return ""
+                    if 'mern' in r:
+                        return 'MERN-Stack Developer'
+                    if 'frontend' in r or 'front-end' in r or 'front end' in r:
+                        return 'Frontend Developer'
+                    if 'full stack' in r or 'full-stack' in r:
+                        return 'Full Stack Developer'
+                    if 'web' in r:
+                        return 'Web Developer'
+                    if 'cyber' in r or 'security' in r:
+                        return 'Cybersecurity Analyst'
+                    if 'data' in r:
+                        return 'Data Science Intern'
+                    if re.search(r'\bai\b', r) or 'machine learning' in r or re.search(r'\bml\b', r) or 'artificial intelligence' in r:
+                        return 'AI / Machine Learning'
+                    if 'mobile' in r or 'app' in r or 'android' in r or re.search(r'\bios\b', r) or 'flutter' in r:
+                        return 'Mobile App Developer'
+                    return raw_role
+
+                df_std['Internship Role'] = df_std['Internship Role'].apply(map_internship_role)
+                
+                # Calculate completeness score
+                df_std['completeness'] = df_std[std_cols].apply(lambda x: (x != "").sum(), axis=1)
+                
+                # Sort by completeness to keep the best record first
+                df_std = df_std.sort_values('completeness', ascending=False)
+                
+                original_count = len(df_std)
+                
+                # Format Internship ID
+                df_std['Internship ID'] = df_std['Internship ID'].astype(str).str.strip().str.upper()
+                
+                # Normalized columns for duplicate checking
+                df_std['_clean_email'] = df_std['Email Address'].str.lower()
+                df_std['_clean_phone'] = df_std['Phone Number (WhatsApp)'].str.replace(r'\D', '', regex=True)
+                
+                # Identify ALL duplicates for detailed reporting
+                all_email_dupes = df_std[df_std.duplicated(subset=['_clean_email'], keep=False) & (df_std['_clean_email'] != "")]
+                all_phone_dupes = df_std[df_std.duplicated(subset=['_clean_phone'], keep=False) & (df_std['_clean_phone'] != "")]
+                
+                # Group them to show related IDs
+                email_dupe_groups = []
+                for email, group in all_email_dupes.groupby('_clean_email'):
+                    ids = [i if str(i).strip() else "NO_ID" for i in group['Internship ID'].tolist()]
+                    names = group['Full Name'].tolist()
+                    email_dupe_groups.append({"Email": email, "Names": ", ".join(names), "Duplicated IDs": ", ".join(ids), "Count": len(group)})
+                
+                phone_dupe_groups = []
+                for phone, group in all_phone_dupes.groupby('_clean_phone'):
+                    ids = [i if str(i).strip() else "NO_ID" for i in group['Internship ID'].tolist()]
+                    names = group['Full Name'].tolist()
+                    phone_dupe_groups.append({"Phone": phone, "Names": ", ".join(names), "Duplicated IDs": ", ".join(ids), "Count": len(group)})
+                
+                # Identify duplicates for reporting
+                email_dupe_mask = df_std.duplicated(subset=['_clean_email'], keep='first') & (df_std['_clean_email'] != "")
+                removed_emails_df = df_std[email_dupe_mask]
+                
+                # Filter out email duplicates
+                df_std = df_std[~email_dupe_mask]
+                
+                phone_dupe_mask = df_std.duplicated(subset=['_clean_phone'], keep='first') & (df_std['_clean_phone'] != "")
+                removed_phones_df = df_std[phone_dupe_mask]
+                
+                # Filter out phone duplicates
+                df_std = df_std[~phone_dupe_mask]
+                
+                # Identify invalid formatting in IDs (missing or no alphanumeric characters)
+                def is_invalid_id(val):
+                    s = str(val).strip()
+                    if not s: return True
+                    # Check if it matches ZYNVEX-CERT-0000 or ZYNVEX-CERT-00000
+                    if not re.match(r'^ZYNVEX-CERT-\d{4,5}$', s, re.IGNORECASE): return True
+                    if s.lower() in ['nan', 'none', 'n/a', 'na']: return True
+                    return False
+                
+                invalid_id_mask = df_std['Internship ID'].apply(is_invalid_id)
+                invalid_ids_df = df_std[invalid_id_mask]
+                
+                # Prepare invalid IDs summary
+                invalid_summary = []
+                for idx, row in invalid_ids_df.iterrows():
+                    invalid_summary.append({
+                        "Original Row (approx)": idx + 2,
+                        "Full Name": row['Full Name'],
+                        "Invalid ID": row['Internship ID'] if str(row['Internship ID']).strip() else "(Empty)"
+                    })
+                
+                final_count = len(df_std)
+                duplicates_removed = len(removed_emails_df) + len(removed_phones_df)
+                invalid_count = len(invalid_ids_df)
+                
+                # Clean up temp columns and reset index
+                df_out = df_std[std_cols].reset_index(drop=True)
+                
+                # Render summary
+                st.success(f"Processed successfully! Retained **{final_count}** unique records out of **{original_count}**.")
+                
+                st.subheader("📊 Processing Summary")
+                col1, col2, col3 = st.columns(3)
+                col1.metric("Total Rows Processed", original_count)
+                col2.metric("Duplicates Removed", duplicates_removed)
+                col3.metric("Invalid/Missing IDs", invalid_count)
+                
+                if duplicates_removed > 0:
+                    with st.expander(f"🔍 View Duplicate Details ({duplicates_removed} removed)"):
+                        if email_dupe_groups:
+                            st.markdown("**Shared Email Addresses (Which IDs were duplicated):**")
+                            st.dataframe(pd.DataFrame(email_dupe_groups), use_container_width=True)
+                        if phone_dupe_groups:
+                            st.markdown("**Shared Phone Numbers (Which IDs were duplicated):**")
+                            st.dataframe(pd.DataFrame(phone_dupe_groups), use_container_width=True)
+                
+                if invalid_count > 0:
+                    with st.expander(f"⚠️ View Invalid Format IDs ({invalid_count})"):
+                        st.markdown("The following records have missing, completely empty, or improperly formatted Internship IDs:")
+                        st.dataframe(pd.DataFrame(invalid_summary), use_container_width=True)
+                
+                st.dataframe(df_out, use_container_width=True)
+                
+                csv_buffer = df_out.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="📥 Download Formatted CSV",
+                    data=csv_buffer,
+                    file_name="Formatted_Candidates.csv",
+                    mime="text/csv",
+                    type="primary"
+                )
+
+        except Exception as e:
+            st.error(f"Error processing CSV: {e}")
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# VIEW 8 – PORTAL SETTINGS
 # =============================================================================
 elif view == "⚙️ Portal Settings":
     st.markdown("<h1 class='main-header'>Portal Settings</h1>", unsafe_allow_html=True)
