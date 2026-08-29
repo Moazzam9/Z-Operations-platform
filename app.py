@@ -16,6 +16,7 @@ from models import get_db_session, WhatsAppLink, SystemSetting
 import services.generator_wrapper as generator
 import services.compressor_wrapper as compressor
 import services.emailer_wrapper as emailer
+import services.qr_wrapper as qr_wrapper
 
 # ── PAGE CONFIGURATION ────────────────────────────────────────────────────────
 st.set_page_config(
@@ -131,6 +132,7 @@ view = st.sidebar.radio("Independent Toolkit Menu", [
     "✉️ Offer Letter Mailer",
     "💬 Role WhatsApp Mailer",
     "💬 CSV WhatsApp Invites",
+    "🔲 Certificate QR Generator",
     "⚙️ Portal Settings"
 ])
 
@@ -836,7 +838,122 @@ elif view == "💬 CSV WhatsApp Invites":
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# VIEW 6 – PORTAL SETTINGS
+# VIEW 6 – CERTIFICATE QR GENERATOR
+# ═════════════════════════════════════════════════════════════════════════════
+elif view == "🔲 Certificate QR Generator":
+    st.markdown("<h1 class='main-header'>Certificate QR Code Generator</h1>", unsafe_allow_html=True)
+    st.write(
+        "Upload a CSV with Internship IDs and a ZIP containing PDF certificates. "
+        "The system will generate a QR code for each certificate, overlay it on the PDF, "
+        "and provide a ZIP containing the updated certificates."
+    )
+
+    st.markdown("""
+    <div class="card">
+        <strong>Required CSV column:</strong>
+        <code>Internship ID</code><br>
+        <strong>Note:</strong> PDF filenames must exactly match the Internship ID (e.g. <code>ZYNVEX-FE-1042.pdf</code>).
+    </div>
+    """, unsafe_allow_html=True)
+
+    with st.expander("QR Code Configuration", expanded=False):
+        col_x, col_w, col_m = st.columns(3)
+        qr_x = col_x.number_input("X Coordinate (points from left)", value=400, step=10)
+        qr_width = col_w.number_input("QR Width (points)", value=70, step=5)
+        bottom_margin = col_m.number_input("Bottom Margin (points)", value=60, step=5)
+        st.caption("Default values are optimized for Zynvex Certificates. (60 points ≈ 0.83 inch)")
+
+    csv_uploader = st.file_uploader("1. Upload Candidate CSV", type=[".csv"], key="qr_csv")
+    zip_uploader = st.file_uploader("2. Upload Certificates ZIP", type=[".zip"], key="qr_zip")
+
+    if csv_uploader and zip_uploader:
+        if st.button("Generate & Apply QR Codes", type="primary"):
+            run_id = uuid.uuid4().hex[:6]
+            pdf_extract_dir = os.path.join(st.session_state.temp_dir, f"ext_qr_{run_id}")
+            output_dir = os.path.join(st.session_state.temp_dir, f"qr_out_{run_id}")
+            os.makedirs(pdf_extract_dir, exist_ok=True)
+            os.makedirs(output_dir, exist_ok=True)
+            
+            zip_temp_path = os.path.join(st.session_state.temp_dir, f"qr_in_{run_id}.zip")
+            out_zip_path = os.path.join(st.session_state.temp_dir, f"certificates_with_qr_{run_id}.zip")
+
+            with open(zip_temp_path, "wb") as fh:
+                fh.write(zip_uploader.getbuffer())
+
+            try:
+                # 1. Parse CSV
+                df = parse_and_clean_csv(csv_uploader)
+                id_col = next((c for c in df.columns if c.lower() in ["internship id", "id"]), None)
+                
+                if not id_col:
+                    st.error("CSV missing required column: 'Internship ID'.")
+                else:
+                    ids = df[id_col].dropna().astype(str).str.strip().tolist()
+                    ids = [id_ for id_ in ids if id_]
+                    st.info(f"Found {len(ids)} certificate IDs in CSV.")
+
+                    # 2. Extract ZIP
+                    with zipfile.ZipFile(zip_temp_path, "r") as z:
+                        z.extractall(pdf_extract_dir)
+
+                    # 3. Build mapping: filename (lowercase) -> full path
+                    pdf_files = {}
+                    for root, _, files in os.walk(pdf_extract_dir):
+                        for f in files:
+                            if f.lower().endswith(".pdf"):
+                                pdf_files[f.lower()] = os.path.join(root, f)
+
+                    if not pdf_files:
+                        st.error("No PDF files found inside the uploaded ZIP.")
+                    else:
+                        st.write("Processing certificates...")
+                        progress_bar = st.progress(0)
+                        
+                        def progress_cb(idx, total):
+                            progress_bar.progress(idx / total)
+
+                        # 4. Process
+                        success_count, failed_ids, page_height, qr_y = qr_wrapper.process_certificates_batch(
+                            pdf_files=pdf_files,
+                            ids=ids,
+                            output_dir=output_dir,
+                            qr_x=qr_x,
+                            qr_width=qr_width,
+                            bottom_margin=bottom_margin,
+                            progress_callback=progress_cb
+                        )
+
+                        # 5. Bundle Output
+                        with zipfile.ZipFile(out_zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+                            for root, _, files in os.walk(output_dir):
+                                for f in files:
+                                    z.write(os.path.join(root, f), arcname=f)
+
+                        st.success(f"Successfully processed {success_count} certificates! (Page Height: {page_height} pt, QR Y: {qr_y:.2f} pt)")
+                        if failed_ids:
+                            with st.expander(f"❌ Failed ({len(failed_ids)})"):
+                                for err in failed_ids:
+                                    st.write(f"- {err}")
+
+                        if success_count > 0:
+                            with open(out_zip_path, "rb") as fh:
+                                st.download_button(
+                                    label="📥 Download Certificates with QR",
+                                    data=fh,
+                                    file_name="certificates_with_qr.zip",
+                                    mime="application/zip",
+                                    type="primary"
+                                )
+
+            except Exception as e:
+                st.error(f"Processing failed: {e}")
+            finally:
+                if os.path.exists(zip_temp_path):
+                    os.remove(zip_temp_path)
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# VIEW 7 – PORTAL SETTINGS
 # =============================================================================
 elif view == "⚙️ Portal Settings":
     st.markdown("<h1 class='main-header'>Portal Settings</h1>", unsafe_allow_html=True)
