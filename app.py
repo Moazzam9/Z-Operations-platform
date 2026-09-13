@@ -120,17 +120,79 @@ def _check_db_writable():
 _db_ok, _db_msg = _check_db_writable()
 
 # ── DATABASE SEEDER ───────────────────────────────────────────────────────────
+_SEED_SENTINEL_KEY = "_seed_boot_marker"
+_SEED_VERSION     = "2026.09.13-v1"
+
+
+def _db_has_any_user_data(db) -> bool:
+    """
+    Heuristic: if *any* non-sentinel SystemSetting or non-default WhatsApp
+    role exists, the DB has been modified by a human and we must not re-seed
+    default links (even if some default roles were deleted).
+    """
+    ss_count = db.query(SystemSetting).filter(
+        SystemSetting.key != _SEED_SENTINEL_KEY
+    ).count()
+    wa_count = db.query(WhatsAppLink).count()
+
+    default_wa_keys = {
+        "Frontend Development",
+        "Full Stack Development",
+        "Mern-Stack Development",
+        "Web Development",
+        "Cybersecurity Analyst",
+        "Data Science Intern",
+        "AI / Machine Learning",
+        "Mobile App Development",
+    }
+    default_ss_keys = {
+        "smtp_host", "smtp_port", "smtp_user", "smtp_password",
+        "offer_subject", "offer_plain", "offer_html",
+        "confirm_subject", "confirm_plain", "confirm_html",
+        "qr_x", "qr_width", "qr_bottom_margin",
+    }
+
+    has_custom_ss = bool(
+        db.query(SystemSetting).filter(
+            ~SystemSetting.key.in_(list(default_ss_keys) + [_SEED_SENTINEL_KEY])
+        ).first()
+    )
+    custom_wa_roles = [
+        row.role
+        for row in db.query(WhatsAppLink).all()
+        if row.role not in default_wa_keys
+    ]
+
+    return has_custom_ss or bool(custom_wa_roles) or (
+        ss_count > len(default_ss_keys)
+    ) or (wa_count > 0 and wa_count != len(default_wa_keys))
+
+
 def seed_database_once():
     """
-    Seed default records only if missing. Runs inside try/except so that a
-    non-fatal seed failure (e.g. readonly DB after first deploy) does not
-    crash the entire app at import time.
+    Seed default records ONLY on the VERY FIRST database boot.
+
+    Strategy:
+      * If sentinel ``_seed_boot_marker`` already exists → short-circuit.
+      * Else, perform the full default insert (WA links, SMTP, templates, QR).
+      * Finally write the sentinel so this function is a true one-shot per DB.
+
+    The per-row ``if not exists`` guard is kept as a secondary safety net
+    (e.g. for partial DBs created before the sentinel was introduced), but
+    alone it's insufficient because a user who *deletes* a default WA role
+    would get it silently re-inserted on the next redeploy.
     """
     if not _db_ok:
-        # Don't even attempt writes on a read-only volume.
         return
+
     try:
         with get_db_session() as db:
+            sentinel = SystemSetting.get(db, _SEED_SENTINEL_KEY, None)
+            if sentinel is not None:
+                return
+
+            already_modified = _db_has_any_user_data(db)
+
             default_links = {
                 "Frontend Development":    "https://chat.whatsapp.com/HvHKMvs6bXfFhF0y1r73dy",
                 "Full Stack Development":  "https://chat.whatsapp.com/HeO8K1zT6aH121wZ5N1QWI",
@@ -141,9 +203,10 @@ def seed_database_once():
                 "AI / Machine Learning":   "https://chat.whatsapp.com/FtRXZcE4qsOGZmgX2o8FJT",
                 "Mobile App Development":  "https://chat.whatsapp.com/GryFrlVAOrI0irEjottsVh"
             }
-            for role, url in default_links.items():
-                if not db.query(WhatsAppLink).filter_by(role=role).first():
-                    db.add(WhatsAppLink(role=role, group_link=url))
+            if not already_modified:
+                for role, url in default_links.items():
+                    if not db.query(WhatsAppLink).filter_by(role=role).first():
+                        db.add(WhatsAppLink(role=role, group_link=url))
 
             smtp_defaults = {
                 "smtp_host":     "smtp.gmail.com",
@@ -175,9 +238,9 @@ def seed_database_once():
             for key, val in qr_defaults.items():
                 if not db.query(SystemSetting).filter_by(key=key).first():
                     db.add(SystemSetting(key=key, value=val))
+
+            SystemSetting.set(db, _SEED_SENTINEL_KEY, _SEED_VERSION)
     except Exception as e:
-        # Swallow seed-time errors. The app still serves (writes will fail
-        # later inside settings screens with clearer inline messages).
         import warnings
         warnings.warn(f"[seed_database_once] seed skipped: {e}")
 
@@ -191,22 +254,81 @@ if _db_ok:
         _DB_SEED_RAN = False
 
 
+def _db_sentinel_status() -> tuple[bool, str]:
+    """
+    Diagnose whether the current DB has been seeded before.
+    Returns (has_sentinel: bool, status_line: str).
+    Used by the startup banner to tell admins whether their DB file actually
+    survived a redeploy.
+    """
+    if not _db_ok:
+        return False, "DB not writable — can't check sentinel status."
+    try:
+        with get_db_session() as db:
+            marker = SystemSetting.get(db, _SEED_SENTINEL_KEY, None)
+            wa_cnt = db.query(WhatsAppLink).count()
+            ss_cnt = db.query(SystemSetting).filter(
+                SystemSetting.key != _SEED_SENTINEL_KEY
+            ).count()
+            if marker:
+                return True, (
+                    f"DB initialized (seed v{marker}). "
+                    f"{wa_cnt} WA links · {ss_cnt} system settings stored."
+                )
+            return False, (
+                f"⚠️  DB has **no seed sentinel**. Looks like a freshly-created "
+                f"empty file. WA links={wa_cnt} · settings={ss_cnt}. "
+                f"If this isn't your very first run, your DB file was probably "
+                f"re-created during the last redeploy — commit "
+                f"`instance/zynvex_portal.db` to GitHub to fix this permanently."
+            )
+    except Exception as e:
+        return False, f"Could not read DB sentinel status: {e}"
+
+
+DB_SENTINEL_OK, DB_SENTINEL_MSG = _db_sentinel_status()
+
+
 def show_db_writable_banner_if_needed():
     """
-    Render a dismissable warning at the top of the page whenever the DB
-    writability check failed at startup. All save operations will otherwise
-    raise OperationalError.
+    Render a banner at the top of the page that tells the admin, in plain
+    English, exactly what state their database is in:
+
+      * GREEN info  → everything OK (sentinel found + counts)
+      * RED warning → DB file is read-only (Streamlit Cloud readonly mount)
+      * AMBER warn  → DB writable but NO sentinel = fresh empty file on every
+                      redeploy → `instance/zynvex_portal.db` is NOT in the repo.
     """
-    if _db_ok:
+    if not _db_ok:
+        st.warning(
+            f"⚠️ **Database is read-only** — all settings will reset on refresh/redeploy.  \n"
+            f"`{_db_msg}`  \n\n"
+            f"On **Streamlit Community Cloud** the repo folder is mounted read-only.  \n"
+            f"**Fix permanently:** commit the updated `instance/zynvex_portal.db` "
+            f"file to your GitHub repo so it's part of every deploy, or switch to "
+            f"an external database (Postgres / Supabase)."
+        )
         return
-    st.warning(
-        f"⚠️ **Database is read-only** — settings will reset on refresh.  \n"
-        f"`{_db_msg}`  \n\n"
-        f"On **Streamlit Community Cloud** the repo folder is mounted read-only. "
-        f"To make changes persist across redeploys either (a) commit the updated "
-        f"`instance/zynvex_portal.db` to your repo, or (b) configure a writable "
-        f"mount or switch to an external Postgres/Supabase DATABASE_URL."
-    )
+
+    if DB_SENTINEL_OK:
+        st.info(
+            f"💾 **DB persistence healthy**  \n{DB_SENTINEL_MSG}"
+        )
+    else:
+        st.warning(
+            f"🔁 **DB appears fresh (no seed sentinel found)** — if you didn't just "
+            f"install the app for the first time, your `instance/zynvex_portal.db` "
+            f"is being **recreated on every redeploy** and your saved edits (WA links, "
+            f"SMTP, templates, QR defaults) will vanish.  \n\n"
+            f"{DB_SENTINEL_MSG}  \n\n"
+            f"**How to fix:**  \n"
+            f" 1. Configure all your WA links / SMTP / templates / QR in the UI.  \n"
+            f" 2. Copy the generated `instance/zynvex_portal.db` from your local or "
+            f"cloud workspace into the cloned `z-operations-platform` repo.  \n"
+            f" 3. `git add instance/zynvex_portal.db` and commit/push to GitHub.  \n"
+            f" 4. Trigger a Streamlit redeploy. From now on your saved values will "
+            f"survive reboots."
+        )
 
 
 # ── UNIVERSAL "SAFE SAVE + VERIFY" HELPERS FOR PORTAL SETTINGS ────────────────
