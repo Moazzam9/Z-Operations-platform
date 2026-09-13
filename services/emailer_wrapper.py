@@ -21,7 +21,7 @@ The internship begins on 19 July. To confirm your seat, please complete the regi
 To submit your payment details, please click the "Register Now" button below and complete the registration form with the required information.
 
 Registration Form: https://forms.gle/28eDnzxH5DWHejHy7
-Fee: PKR 300 (Pakistan) / USD 1.50 (International)
+Fee: PKR 320 (Pakistan) / USD 1.50 (International)
 
 Why a registration fee?
 When we launched this internship program, the opportunity was offered completely free of charge. However, due to a lack of serious participation from several candidates in the free batch, we have introduced a nominal registration fee.
@@ -71,7 +71,7 @@ OFFER_LETTER_HTML = """\
                             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F7F4FC; border-left:4px solid #8E7CC3; margin:28px 0 28px;">
                                 <tr>
                                     <td style="padding:20px 24px;">
-                                        <p style="margin:0 0 6px; font-size:15px; color:#2D2D2D;"><strong>Internship Start Date:</strong> August 20th, 2026 </p>
+                                        <p style="margin:0 0 6px; font-size:15px; color:#2D2D2D;"><strong>Internship Start Date:</strong> September 20th, 2026 </p>
                                         <p style="margin:0; font-size:15px; color:#2D2D2D;"><strong>Confirmation Deadline:</strong> Within 2 days of receiving your offer letter.</p>
                                     </td>
                                 </tr>
@@ -99,7 +99,7 @@ OFFER_LETTER_HTML = """\
                                 <tr>
                                     <td style="padding:18px 24px;">
                                         <p style="margin:0 0 8px; font-size:15px; color:#2D2D2D;"><strong>Registration Fee</strong></p>
-                                        <p style="margin:0 0 4px; font-size:14px; color:#2D2D2D;"><strong>PKR 300</strong> (Pakistan)</p>
+                                        <p style="margin:0 0 4px; font-size:14px; color:#2D2D2D;"><strong>PKR 320</strong> (Pakistan)</p>
                                         <p style="margin:0; font-size:14px; color:#2D2D2D;"><strong>USD 1.50</strong> (International)</p>
                                     </td>
                                 </tr>
@@ -148,7 +148,7 @@ Hello {name},
 
 Congratulations! Your payment has been confirmed. You have been selected for the {role} internship program.
 
-Important Update: The internship start date has been changed from 20 August to 19 August.
+Important Update: The internship start date has been changed from 20 September to 19 September.
 
 Your Internship ID: {internship_id}
 
@@ -193,7 +193,7 @@ CONFIRM_EMAIL_HTML = """\
                             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#FDF0E8; border-left:4px solid #E67E22; margin:0 0 28px;">
                                 <tr>
                                     <td style="padding:20px 24px;">
-                                        <p style="margin:0; font-size:15px; color:#2D2D2D;"><strong>Important Update:</strong> The internship start date has been changed from 20 August to 19 August.</p>
+                                        <p style="margin:0; font-size:15px; color:#2D2D2D;"><strong>Important Update:</strong> The internship start date has been changed from 20 September to 19 September.</p>
                                     </td>
                                 </tr>
                             </table>
