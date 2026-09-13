@@ -11,12 +11,48 @@ import pandas as pd
 import streamlit as st
 import fitz  # PyMuPDF
 
+from sqlalchemy.exc import OperationalError as SAOperationalError
+
 from config import Config
-from models import get_db_session, WhatsAppLink, SystemSetting
+from models import get_db_session, WhatsAppLink, SystemSetting, retry_on_sqlite_busy
 import services.generator_wrapper as generator
 import services.compressor_wrapper as compressor
 import services.emailer_wrapper as emailer
 import services.qr_wrapper as qr_wrapper
+
+
+def _classify_db_error(exc: Exception) -> str:
+    msg = str(exc).lower()
+    if "database is locked" in msg or "busy" in msg:
+        return (
+            "⚠️ The database was temporarily **locked** by another operation. "
+            "Press **R** to rerun the page, or wait 2-3 seconds and try again. "
+            f"Underlying error: {exc}"
+        )
+    if "readonly" in msg or "read-only" in msg or "unable to open database file" in msg:
+        return (
+            "⚠️ Database storage is currently **read-only** on this deployment. "
+            "See the yellow banner at the top of the page for instructions. "
+            f"Underlying error: {exc}"
+        )
+    if "no such table" in msg or "no such column" in msg:
+        return (
+            "⚠️ The database file is **out of date** (schema mismatch). "
+            "Delete `instance/zynvex_portal.db` and let the app recreate it, "
+            f"or commit a fresh DB file to the repo. Underlying error: {exc}"
+        )
+    return f"❌ Database error: {exc}"
+
+
+def safe_db_read(read_fn, fallback=None, *, label="data"):
+    try:
+        return retry_on_sqlite_busy(read_fn)
+    except SAOperationalError as e:
+        st.caption(f"ℹ️ Could not load {label} ({_classify_db_error(e).splitlines()[0]})")
+        return fallback
+    except Exception as e:
+        st.caption(f"ℹ️ Could not load {label}: {e}")
+        return fallback
 
 # ── PAGE CONFIGURATION ────────────────────────────────────────────────────────
 st.set_page_config(
@@ -37,57 +73,236 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# ── DATABASE WRITABILITY CHECK ────────────────────────────────────────────────
+def _check_db_writable():
+    """
+    Early health check: confirm the SQLite DB file (or its containing directory)
+    is writable. On Streamlit Community Cloud the repo is mounted read-only at
+    /mount/src/... so this test will fail fast with a clear message instead of
+    cryptic SQLAlchemy OperationalErrors deep inside a request.
+
+    Returns (ok: bool, message: str).
+    """
+    db_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), "instance", "zynvex_portal.db")
+    instance_dir = os.path.dirname(db_path)
+    try:
+        os.makedirs(instance_dir, exist_ok=True)
+    except Exception as e:
+        return False, f"Cannot create instance dir '{instance_dir}': {e}"
+
+    # Test 1 – directory writable (create + delete a small probe file)
+    probe = os.path.join(instance_dir, f"._writable_probe_{os.getpid()}.tmp")
+    try:
+        with open(probe, "wb") as fh:
+            fh.write(b"ok")
+        os.remove(probe)
+    except Exception as e:
+        return (
+            False,
+            f"Instance directory is NOT writable: '{instance_dir}'. "
+            f"On Streamlit Cloud the DB must live in a mounted folder. Error: {e}"
+        )
+
+    # Test 2 – existing DB file is writable (or we can create it)
+    try:
+        if os.path.exists(db_path):
+            with open(db_path, "ab") as fh:
+                pass  # Append zero bytes — must work if file is R/W
+        else:
+            with open(db_path, "wb") as fh:
+                pass
+    except Exception as e:
+        return False, f"Database file '{db_path}' is NOT writable: {e}"
+
+    return True, db_path
+
+
+_db_ok, _db_msg = _check_db_writable()
+
 # ── DATABASE SEEDER ───────────────────────────────────────────────────────────
 def seed_database_once():
-    with get_db_session() as db:
-        default_links = {
-            "Frontend Development":    "https://chat.whatsapp.com/HvHKMvs6bXfFhF0y1r73dy",
-            "Full Stack Development":  "https://chat.whatsapp.com/HeO8K1zT6aH121wZ5N1QWI",
-            "Mern-Stack Development":  "https://chat.whatsapp.com/CwC5KC4TeSE3zHL37J3N49",
-            "Web Development":         "https://chat.whatsapp.com/F8gneCwI8T7GHk70hsvmzw",
-            "Cybersecurity Analyst":   "https://chat.whatsapp.com/Bk1NYnxjwvw8s9c8mxasCe",
-            "Data Science Intern":     "https://chat.whatsapp.com/JAqv0ZpC8YNJ3zuk9iP3KU",
-            "AI / Machine Learning":   "https://chat.whatsapp.com/FtRXZcE4qsOGZmgX2o8FJT",
-            "Mobile App Development":  "https://chat.whatsapp.com/GryFrlVAOrI0irEjottsVh"
-        }
-        for role, url in default_links.items():
-            if not db.query(WhatsAppLink).filter_by(role=role).first():
-                db.add(WhatsAppLink(role=role, group_link=url))
+    """
+    Seed default records only if missing. Runs inside try/except so that a
+    non-fatal seed failure (e.g. readonly DB after first deploy) does not
+    crash the entire app at import time.
+    """
+    if not _db_ok:
+        # Don't even attempt writes on a read-only volume.
+        return
+    try:
+        with get_db_session() as db:
+            default_links = {
+                "Frontend Development":    "https://chat.whatsapp.com/HvHKMvs6bXfFhF0y1r73dy",
+                "Full Stack Development":  "https://chat.whatsapp.com/HeO8K1zT6aH121wZ5N1QWI",
+                "Mern-Stack Development":  "https://chat.whatsapp.com/CwC5KC4TeSE3zHL37J3N49",
+                "Web Development":         "https://chat.whatsapp.com/F8gneCwI8T7GHk70hsvmzw",
+                "Cybersecurity Analyst":   "https://chat.whatsapp.com/Bk1NYnxjwvw8s9c8mxasCe",
+                "Data Science Intern":     "https://chat.whatsapp.com/JAqv0ZpC8YNJ3zuk9iP3KU",
+                "AI / Machine Learning":   "https://chat.whatsapp.com/FtRXZcE4qsOGZmgX2o8FJT",
+                "Mobile App Development":  "https://chat.whatsapp.com/GryFrlVAOrI0irEjottsVh"
+            }
+            for role, url in default_links.items():
+                if not db.query(WhatsAppLink).filter_by(role=role).first():
+                    db.add(WhatsAppLink(role=role, group_link=url))
 
-        smtp_defaults = {
-            "smtp_host":     "smtp.gmail.com",
-            "smtp_port":     "587",
-            "smtp_user":     "zynvexsolutions@gmail.com",
-            "smtp_password": "fdalbitovysgxvth"
-        }
-        for key, val in smtp_defaults.items():
-            if not db.query(SystemSetting).filter_by(key=key).first():
-                db.add(SystemSetting(key=key, value=val))
+            smtp_defaults = {
+                "smtp_host":     "smtp.gmail.com",
+                "smtp_port":     "587",
+                "smtp_user":     "zynvexsolutions@gmail.com",
+                "smtp_password": "fdalbitovysgxvth"
+            }
+            for key, val in smtp_defaults.items():
+                if not db.query(SystemSetting).filter_by(key=key).first():
+                    db.add(SystemSetting(key=key, value=val))
 
-        tpl_defaults = {
-            "offer_subject":   emailer.OFFER_LETTER_SUBJECT,
-            "offer_plain":     emailer.OFFER_LETTER_PLAIN,
-            "offer_html":      emailer.OFFER_LETTER_HTML,
-            "confirm_subject": emailer.CONFIRM_EMAIL_SUBJECT,
-            "confirm_plain":   emailer.CONFIRM_EMAIL_PLAIN,
-            "confirm_html":    emailer.CONFIRM_EMAIL_HTML
-        }
-        for key, val in tpl_defaults.items():
-            if not db.query(SystemSetting).filter_by(key=key).first():
-                db.add(SystemSetting(key=key, value=val))
+            tpl_defaults = {
+                "offer_subject":   emailer.OFFER_LETTER_SUBJECT,
+                "offer_plain":     emailer.OFFER_LETTER_PLAIN,
+                "offer_html":      emailer.OFFER_LETTER_HTML,
+                "confirm_subject": emailer.CONFIRM_EMAIL_SUBJECT,
+                "confirm_plain":   emailer.CONFIRM_EMAIL_PLAIN,
+                "confirm_html":    emailer.CONFIRM_EMAIL_HTML
+            }
+            for key, val in tpl_defaults.items():
+                if not db.query(SystemSetting).filter_by(key=key).first():
+                    db.add(SystemSetting(key=key, value=val))
 
-        qr_defaults = {
-            "qr_x":             "400",
-            "qr_width":         "70",
-            "qr_bottom_margin": "60"
-        }
-        for key, val in qr_defaults.items():
-            if not db.query(SystemSetting).filter_by(key=key).first():
-                db.add(SystemSetting(key=key, value=val))
-        db.commit()
+            qr_defaults = {
+                "qr_x":             "400",
+                "qr_width":         "70",
+                "qr_bottom_margin": "60"
+            }
+            for key, val in qr_defaults.items():
+                if not db.query(SystemSetting).filter_by(key=key).first():
+                    db.add(SystemSetting(key=key, value=val))
+    except Exception as e:
+        # Swallow seed-time errors. The app still serves (writes will fail
+        # later inside settings screens with clearer inline messages).
+        import warnings
+        warnings.warn(f"[seed_database_once] seed skipped: {e}")
 
 
-seed_database_once()
+_DB_SEED_RAN = False
+if _db_ok:
+    try:
+        seed_database_once()
+        _DB_SEED_RAN = True
+    except Exception:
+        _DB_SEED_RAN = False
+
+
+def show_db_writable_banner_if_needed():
+    """
+    Render a dismissable warning at the top of the page whenever the DB
+    writability check failed at startup. All save operations will otherwise
+    raise OperationalError.
+    """
+    if _db_ok:
+        return
+    st.warning(
+        f"⚠️ **Database is read-only** — settings will reset on refresh.  \n"
+        f"`{_db_msg}`  \n\n"
+        f"On **Streamlit Community Cloud** the repo folder is mounted read-only. "
+        f"To make changes persist across redeploys either (a) commit the updated "
+        f"`instance/zynvex_portal.db` to your repo, or (b) configure a writable "
+        f"mount or switch to an external Postgres/Supabase DATABASE_URL."
+    )
+
+
+# ── UNIVERSAL "SAFE SAVE + VERIFY" HELPERS FOR PORTAL SETTINGS ────────────────
+def save_and_verify_system_settings(pairs):
+    """
+    Write a batch of SystemSetting key→value pairs inside a single session,
+    let the context manager commit, then re-read in a FRESH session and
+    verify every value matches. Returns (ok: bool, message: str).
+
+    ``pairs`` is a list/tuple of (key, expected_value).
+    """
+    if not _db_ok:
+        return False, (
+            "⚠️ Cannot save — database storage is currently **read-only** on this "
+            "deployment. See the banner above for instructions."
+        )
+    try:
+        with get_db_session() as db:
+            for k, v in pairs:
+                SystemSetting.set(db, k, str(v))
+
+        mismatches = []
+        with get_db_session() as db2:
+            for k, expected in pairs:
+                actual = SystemSetting.get(db2, k, "__MISSING__")
+                if actual != str(expected):
+                    mismatches.append(
+                        f"{k}: expected '{str(expected)[:30]}' got '{str(actual)[:30]}'"
+                    )
+
+        if mismatches:
+            return False, (
+                "⚠️ Settings appeared to save correctly but **read-back failed** for: "
+                + ", ".join(mismatches)
+            )
+        keys_str = ", ".join(k for k, _ in pairs)
+        return True, f"✅ Verified! ({keys_str})"
+    except SAOperationalError as e:
+        return False, _classify_db_error(e)
+    except Exception as e:
+        return False, f"❌ Save failed: {e}"
+
+
+def save_and_verify_whatsapp_link(role, new_link, *, existing_role=None, delete=False):
+    """
+    Unified save/verify for WhatsAppLink rows.
+
+    Modes:
+      * ``new_link`` + ``role`` given, ``existing_role`` None  → INSERT new
+      * ``existing_role`` set (may equal role) + ``new_link`` set  → UPDATE
+      * ``delete=True``, ``role`` set                           → DELETE row
+
+    Returns (ok: bool, message: str).
+    """
+    if not _db_ok:
+        return False, (
+            "⚠️ Cannot save — database storage is currently **read-only** on this "
+            "deployment. See the banner above for instructions."
+        )
+    target_role = existing_role if existing_role else role
+    try:
+        with get_db_session() as db:
+            if delete:
+                db.query(WhatsAppLink).filter_by(role=target_role).delete()
+            else:
+                row = db.query(WhatsAppLink).filter_by(role=target_role).first()
+                if row:
+                    row.role = role
+                    row.group_link = new_link
+                else:
+                    db.add(WhatsAppLink(role=role, group_link=new_link))
+
+        with get_db_session() as db2:
+            if delete:
+                gone = db2.query(WhatsAppLink).filter_by(role=target_role).first() is None
+                if gone:
+                    return True, f"✅ Verified removed: '{target_role}'"
+                return False, f"⚠️ Row still present after delete: '{target_role}'"
+            else:
+                v = db2.query(WhatsAppLink).filter_by(role=role).first()
+                if v and v.group_link == new_link:
+                    tail = "…" if len(new_link) > 40 else ""
+                    return True, f"✅ Verified: **{role}** → `{new_link[:40]}{tail}`"
+                if not v:
+                    return False, f"⚠️ Row missing after save for role '{role}'"
+                return False, (
+                    f"⚠️ Value mismatch for '{role}': expected {new_link[:30]}… got {v.group_link[:30]}…"
+                )
+    except SAOperationalError as e:
+        return False, _classify_db_error(e)
+    except Exception as e:
+        return False, f"❌ Operation failed: {e}"
+
+
+# ── DB-READONLY BANNER (shown globally if storage isn't writable) ─────────────
+show_db_writable_banner_if_needed()
 
 # ── SESSION STATE ─────────────────────────────────────────────────────────────
 if "temp_dir" not in st.session_state:
@@ -1075,27 +1290,29 @@ elif view == "🔲 Certificate QR Generator":
             save_col, _, reset_col = st.columns([1, 2, 1])
             with save_col:
                 if st.form_submit_button("💾 Save as Default", use_container_width=True):
-                    with get_db_session() as db2:
-                        SystemSetting.set(db2, "qr_x",             str(int(qr_x)))
-                        SystemSetting.set(db2, "qr_width",         str(int(qr_width)))
-                        SystemSetting.set(db2, "qr_bottom_margin", str(int(bottom_margin)))
-                        db2.commit()
-                        vx = SystemSetting.get(db2, "qr_x")
-                        vw = SystemSetting.get(db2, "qr_width")
-                        vm = SystemSetting.get(db2, "qr_bottom_margin")
-                        if vx == str(int(qr_x)) and vw == str(int(qr_width)) and vm == str(int(bottom_margin)):
-                            st.success(f"QR defaults saved! (X={vx}, W={vw}, Margin={vm})")
-                        else:
-                            st.warning("Settings may not have persisted — please check DB permissions.")
+                    pairs = [
+                        ("qr_x",             str(int(qr_x))),
+                        ("qr_width",         str(int(qr_width))),
+                        ("qr_bottom_margin", str(int(bottom_margin))),
+                    ]
+                    ok, msg = save_and_verify_system_settings(pairs)
+                    if ok:
+                        st.success(msg + f"  (X={qr_x}, W={qr_width}, Margin={bottom_margin})")
+                    else:
+                        st.warning(msg)
                     st.rerun()
             with reset_col:
                 if st.form_submit_button("↺ Restore Defaults", use_container_width=True):
-                    with get_db_session() as db2:
-                        SystemSetting.set(db2, "qr_x",             "400")
-                        SystemSetting.set(db2, "qr_width",         "70")
-                        SystemSetting.set(db2, "qr_bottom_margin", "60")
-                        db2.commit()
-                    st.success("QR settings reset to factory defaults.")
+                    pairs = [
+                        ("qr_x",             "400"),
+                        ("qr_width",         "70"),
+                        ("qr_bottom_margin", "60"),
+                    ]
+                    ok, msg = save_and_verify_system_settings(pairs)
+                    if ok:
+                        st.success("QR settings reset & verified.")
+                    else:
+                        st.warning(msg)
                     st.rerun()
 
         st.info(f"**Current saved defaults:** X={qr_x_val}, QR Width={qr_width_val}, Bottom Margin={qr_margin_val}")
@@ -1474,20 +1691,18 @@ elif view == "⚙️ Portal Settings":
             pass_val = st.text_input("SMTP App Password", type="password",
                                      placeholder="Leave blank to keep existing password")
             if st.form_submit_button("💾 Save SMTP Settings", use_container_width=True):
-                with get_db_session() as db:
-                    SystemSetting.set(db, "smtp_host", host_val.strip())
-                    SystemSetting.set(db, "smtp_port", port_val.strip())
-                    SystemSetting.set(db, "smtp_user", user_val.strip())
-                    if pass_val:
-                        SystemSetting.set(db, "smtp_password", pass_val.strip())
-                    db.commit()
-                    v_host = SystemSetting.get(db, "smtp_host")
-                    v_port = SystemSetting.get(db, "smtp_port")
-                    v_user = SystemSetting.get(db, "smtp_user")
-                    if v_host == host_val.strip() and v_port == port_val.strip() and v_user == user_val.strip():
-                        st.success(f"✅ SMTP settings saved & verified. ({v_user} @ {v_host}:{v_port})")
-                    else:
-                        st.warning("⚠️ Settings may not have persisted — DB permission issue possible.")
+                pairs = [
+                    ("smtp_host", host_val.strip()),
+                    ("smtp_port", port_val.strip()),
+                    ("smtp_user", user_val.strip()),
+                ]
+                if pass_val:
+                    pairs.append(("smtp_password", pass_val.strip()))
+                ok, msg = save_and_verify_system_settings(pairs)
+                if ok:
+                    st.success(msg + f" ({user_val.strip()} @ {host_val.strip()}:{port_val.strip()})")
+                else:
+                    st.warning(msg)
                 st.rerun()
 
     # =========================================================================
@@ -1541,20 +1756,14 @@ elif view == "⚙️ Portal Settings":
                     if not new_link.strip():
                         st.error("Link URL cannot be empty.")
                     else:
-                        with get_db_session() as db:
-                            ex = db.query(WhatsAppLink).filter_by(role=edit_role).first()
-                            if ex:
-                                ex.group_link = new_link.strip()
-                                db.commit()
-                                db.expire_all()
-                                verify = db.query(WhatsAppLink).filter_by(role=edit_role).first()
-                                if verify and verify.group_link == new_link.strip():
-                                    st.success(f"✅ Verified: Link updated for **{edit_role}** → `{verify.group_link[:40]}…`")
-                                else:
-                                    st.warning("⚠️ Save not verified — possible DB permission issue.")
-                            else:
-                                st.error("Program not found in DB.")
-                        st.rerun()
+                        ok, msg = save_and_verify_whatsapp_link(
+                            edit_role, new_link.strip(), existing_role=edit_role
+                        )
+                        if ok:
+                            st.success(msg)
+                        else:
+                            st.warning(msg)
+                    st.rerun()
             st.divider()
 
         # -- Add new program --------------------------------------------------
@@ -1569,20 +1778,12 @@ elif view == "⚙️ Portal Settings":
                     st.error("Both Program name and Link URL are required.")
                 else:
                     norm = emailer.normalize_role(new_role.strip())
-                    with get_db_session() as db:
-                        ex = db.query(WhatsAppLink).filter_by(role=norm).first()
-                        if ex:
-                            ex.group_link = new_url.strip()
-                        else:
-                            db.add(WhatsAppLink(role=norm, group_link=new_url.strip()))
-                        db.commit()
-                        db.expire_all()
-                        verify = db.query(WhatsAppLink).filter_by(role=norm).first()
-                        if verify and verify.group_link == new_url.strip():
-                            st.success(f"✅ Verified: Saved **{norm}** → `{verify.group_link[:40]}…`")
-                        else:
-                            st.warning("⚠️ Save not verified — possible DB permission issue.")
-                    st.rerun()
+                    ok, msg = save_and_verify_whatsapp_link(norm, new_url.strip())
+                    if ok:
+                        st.success(msg)
+                    else:
+                        st.warning(msg)
+                st.rerun()
 
         # -- Delete program ---------------------------------------------------
         if links_list:
@@ -1591,15 +1792,11 @@ elif view == "⚙️ Portal Settings":
             del_role = st.selectbox("Select program to remove",
                                     [l["role"] for l in links_list], key="del_role_sel")
             if st.button("🗑️ Delete This Program Link", type="primary", use_container_width=True):
-                with get_db_session() as db:
-                    db.query(WhatsAppLink).filter_by(role=del_role).delete()
-                    db.commit()
-                    db.expire_all()
-                    verify = db.query(WhatsAppLink).filter_by(role=del_role).first()
-                    if verify is None:
-                        st.toast(f"✅ Verified removed: '{del_role}'", icon="🗑️")
-                    else:
-                        st.warning("⚠️ Deletion not verified — possible DB permission issue.")
+                ok, msg = save_and_verify_whatsapp_link(del_role, "", delete=True)
+                if ok:
+                    st.toast(msg, icon="🗑️")
+                else:
+                    st.warning(msg)
                 st.rerun()
 
     # =========================================================================
@@ -1676,33 +1873,36 @@ elif view == "⚙️ Portal Settings":
             btn_save, btn_reset = st.columns(2)
             with btn_save:
                 if st.button("💾 Save Template", type="primary", use_container_width=True):
-                    with get_db_session() as db:
-                        SystemSetting.set(db, save_subject_key, ed_subject)
-                        SystemSetting.set(db, save_html_key,    ed_html)
-                        SystemSetting.set(db, save_plain_key,   ed_plain)
-                        db.commit()
-                        db.expire_all()
-                        v_subject = SystemSetting.get(db, save_subject_key)
-                        v_html    = SystemSetting.get(db, save_html_key)
-                        v_plain   = SystemSetting.get(db, save_plain_key)
-                        if v_subject == ed_subject and v_html == ed_html and v_plain == ed_plain:
-                            st.success(f"✅ Template verified. Subject: `{v_subject[:50]}…`")
-                        else:
-                            st.warning("⚠️ Template not persisted — check DB permissions.")
+                    pairs = [
+                        (save_subject_key, ed_subject),
+                        (save_html_key,    ed_html),
+                        (save_plain_key,   ed_plain),
+                    ]
+                    ok, msg = save_and_verify_system_settings(pairs)
+                    if ok:
+                        st.success(f"✅ Template verified. Subject: `{ed_subject[:50]}…`")
+                    else:
+                        st.warning(msg)
                     st.rerun()
             with btn_reset:
                 if st.button("↺ Reset to Default", use_container_width=True):
-                    with get_db_session() as db:
-                        if is_offer:
-                            SystemSetting.set(db, "offer_subject", emailer.OFFER_LETTER_SUBJECT)
-                            SystemSetting.set(db, "offer_html",    emailer.OFFER_LETTER_HTML)
-                            SystemSetting.set(db, "offer_plain",   emailer.OFFER_LETTER_PLAIN)
-                        else:
-                            SystemSetting.set(db, "confirm_subject", emailer.CONFIRM_EMAIL_SUBJECT)
-                            SystemSetting.set(db, "confirm_html",    emailer.CONFIRM_EMAIL_HTML)
-                            SystemSetting.set(db, "confirm_plain",   emailer.CONFIRM_EMAIL_PLAIN)
-                        db.commit()
-                    st.success("Reset to built-in default.")
+                    if is_offer:
+                        defaults = [
+                            ("offer_subject", emailer.OFFER_LETTER_SUBJECT),
+                            ("offer_html",    emailer.OFFER_LETTER_HTML),
+                            ("offer_plain",   emailer.OFFER_LETTER_PLAIN),
+                        ]
+                    else:
+                        defaults = [
+                            ("confirm_subject", emailer.CONFIRM_EMAIL_SUBJECT),
+                            ("confirm_html",    emailer.CONFIRM_EMAIL_HTML),
+                            ("confirm_plain",   emailer.CONFIRM_EMAIL_PLAIN),
+                        ]
+                    ok, msg = save_and_verify_system_settings(defaults)
+                    if ok:
+                        st.success("Reset to built-in default & verified.")
+                    else:
+                        st.warning(msg)
                     st.rerun()
 
         with preview_col:
@@ -1752,28 +1952,29 @@ elif view == "⚙️ Portal Settings":
             b_save, _, b_reset = st.columns([1, 2, 1])
             with b_save:
                 if st.form_submit_button("💾 Save Defaults", use_container_width=True):
-                    with get_db_session() as db:
-                        SystemSetting.set(db, "qr_x",             str(int(sq_x)))
-                        SystemSetting.set(db, "qr_width",         str(int(sq_w)))
-                        SystemSetting.set(db, "qr_bottom_margin", str(int(sq_m)))
-                        db.commit()
-                        db.expire_all()
-                        vx = SystemSetting.get(db, "qr_x")
-                        vw = SystemSetting.get(db, "qr_width")
-                        vm = SystemSetting.get(db, "qr_bottom_margin")
-                        if vx == str(int(sq_x)) and vw == str(int(sq_w)) and vm == str(int(sq_m)):
-                            st.success(f"✅ Verified! X={vx}, W={vw}, Margin={vm}")
-                        else:
-                            st.warning("⚠️ Save failed to persist — check DB permissions.")
+                    pairs = [
+                        ("qr_x",             str(int(sq_x))),
+                        ("qr_width",         str(int(sq_w))),
+                        ("qr_bottom_margin", str(int(sq_m))),
+                    ]
+                    ok, msg = save_and_verify_system_settings(pairs)
+                    if ok:
+                        st.success(msg + f"  (X={sq_x}, W={sq_w}, Margin={sq_m})")
+                    else:
+                        st.warning(msg)
                     st.rerun()
             with b_reset:
                 if st.form_submit_button("↺ Restore Factory", use_container_width=True):
-                    with get_db_session() as db:
-                        SystemSetting.set(db, "qr_x",             "400")
-                        SystemSetting.set(db, "qr_width",         "70")
-                        SystemSetting.set(db, "qr_bottom_margin", "60")
-                        db.commit()
-                    st.success("QR defaults reset.")
+                    pairs = [
+                        ("qr_x",             "400"),
+                        ("qr_width",         "70"),
+                        ("qr_bottom_margin", "60"),
+                    ]
+                    ok, msg = save_and_verify_system_settings(pairs)
+                    if ok:
+                        st.success("QR defaults reset & verified.")
+                    else:
+                        st.warning(msg)
                     st.rerun()
 
         st.divider()
