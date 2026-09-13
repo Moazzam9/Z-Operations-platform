@@ -114,6 +114,94 @@ def parse_and_clean_csv(source):
     return df
 
 
+def human_readable_size(num_bytes):
+    """Convert bytes to human-readable string (KB / MB / GB)."""
+    if num_bytes is None:
+        return "0 B"
+    for unit in ["B", "KB", "MB", "GB", "TB"]:
+        if abs(num_bytes) < 1024.0:
+            return f"{num_bytes:,.1f} {unit}"
+        num_bytes /= 1024.0
+    return f"{num_bytes:,.1f} PB"
+
+
+def save_upload_with_progress(uploaded_file, dest_path, label="Uploading"):
+    """
+    Stream an st.file_uploader buffer to a file on disk while showing
+    a real byte-accurate progress bar + percentage.
+    Returns the final destination path.
+    """
+    total_size = uploaded_file.size          # bytes
+    total_kb   = total_size / (1024 * 1024)  # MB
+    chunk_size = 256 * 1024                  # 256 KB per tick
+    bytes_written = 0
+    last_pct = -1
+
+    progress_bar = st.progress(0.0, text=f"{label}… 0 %  (0 / {total_kb:,.2f} MB)")
+    try:
+        with open(dest_path, "wb") as fh:
+            while True:
+                chunk = uploaded_file.read(chunk_size)
+                if not chunk:
+                    break
+                fh.write(chunk)
+                bytes_written += len(chunk)
+                pct_dec = min(bytes_written / total_size, 1.0) if total_size else 1.0
+                pct_int = int(pct_dec * 100)
+                if pct_int != last_pct:
+                    progress_bar.progress(
+                        pct_dec,
+                        text=(f"{label}… {pct_int} %  "
+                              f"({human_readable_size(bytes_written)} / {human_readable_size(total_size)})")
+                    )
+                    last_pct = pct_int
+        progress_bar.progress(
+            1.0,
+            text=f"✅ {label} complete — 100 %  ({human_readable_size(total_size)})"
+        )
+    except Exception:
+        progress_bar.empty()
+        raise
+    return dest_path
+
+
+def extract_zip_with_progress(zip_path, extract_dir, label="Extracting ZIP"):
+    """
+    Extract a ZIP archive while showing per-file progress + overall percentage.
+    Returns list of (member_info, extracted_full_path) tuples for all extracted members.
+    """
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        members = [m for m in zf.infolist() if not m.is_dir()]
+        total_files = len(members)
+        total_uncomp = sum(m.file_size for m in members)
+        extracted_paths = []
+        bytes_done = 0
+
+        if total_files == 0:
+            st.info("ZIP contains no files to extract.")
+            return extracted_paths
+
+        bar = st.progress(0.0, text=f"{label}… 0 %  (0 / {total_files} files)")
+        for idx, info in enumerate(members, 1):
+            full_path = zf.extract(info, path=extract_dir)
+            extracted_paths.append((info, full_path))
+            bytes_done += info.file_size
+            pct_dec = idx / total_files
+            pct_int = int(pct_dec * 100)
+            bar.progress(
+                pct_dec,
+                text=(f"{label}… {pct_int} %  "
+                      f"({idx} / {total_files} files  ·  "
+                      f"{human_readable_size(bytes_done)} / {human_readable_size(total_uncomp)})")
+            )
+        bar.progress(
+            1.0,
+            text=(f"✅ {label} complete — 100 %  ({total_files} files  ·  "
+                  f"{human_readable_size(total_uncomp)} uncompressed)")
+        )
+    return extracted_paths
+
+
 def get_whatsapp_url_custom(cand):
     phone = re.sub(r'\D', '', cand.get("Phone Number", ""))
     link  = cand.get("WhatsApp Link", "")
@@ -298,10 +386,40 @@ The green Ghostscript status badge will appear on this page automatically.
     st.divider()
 
     # ── File uploader ─────────────────────────────────────────────────────────
-    uploaded_zip = st.file_uploader("Upload ZIP archive containing offer letter PDFs", type=[".zip"])
+    uploaded_zip = st.file_uploader("Upload ZIP archive containing offer letter PDFs", type=[".zip"],
+                                    key="compressor_zip",
+                                    help="Maximum file size depends on your Streamlit server config (default: 200 MB).")
+
+    # ── Upload status card ────────────────────────────────────────────────────
+    if uploaded_zip is not None:
+        up_name = uploaded_zip.name
+        up_size = uploaded_zip.size
+        up_col1, up_col2, up_col3 = st.columns([2, 1, 1])
+        with up_col1:
+            st.markdown(
+                f"<div style='background:#F2ECFA;border:1px solid #D5C9F0;border-radius:8px;"
+                f"padding:10px 14px;margin-bottom:10px;'>"
+                f"<strong style='color:#5E4B7A;'>📦 File Ready</strong><br>"
+                f"<span style='font-size:12px;color:#666;'>{up_name}</span><br>"
+                f"<span style='font-size:12px;color:#333;font-weight:600;'>"
+                f"Size: {human_readable_size(up_size)}</span>"
+                f"</div>",
+                unsafe_allow_html=True
+            )
+        with up_col2:
+            st.metric("Upload Status", "✅ 100 %", "File received")
+        with up_col3:
+            with st.expander("ℹ️ Details"):
+                st.markdown(
+                    f"- **File:** `{up_name}`\n"
+                    f"- **Type:** `{uploaded_zip.type or 'application/zip'}`\n"
+                    f"- **Bytes:** `{up_size:,}`\n"
+                    f"- **Streamlit uploaded:** ✅ buffer ready"
+                )
+        st.divider()
 
     if uploaded_zip:
-        if st.button("Compress PDFs", type="primary"):
+        if st.button("Compress PDFs", type="primary", use_container_width=True):
             run_id         = uuid.uuid4().hex[:6]
             extract_dir    = os.path.join(st.session_state.temp_dir, f"ext_{run_id}")
             compressed_dir = os.path.join(st.session_state.temp_dir, f"comp_{run_id}")
@@ -309,13 +427,12 @@ The green Ghostscript status badge will appear on this page automatically.
             os.makedirs(compressed_dir, exist_ok=True)
             zip_temp_path  = os.path.join(st.session_state.temp_dir, f"uploaded_{run_id}.zip")
 
-            with open(zip_temp_path, "wb") as fh:
-                fh.write(uploaded_zip.getbuffer())
-
             try:
-                # Extract ZIP
-                with zipfile.ZipFile(zip_temp_path, "r") as z:
-                    z.extractall(extract_dir)
+                # ── STEP 1 / 4 : Save uploaded ZIP to disk with progress ──
+                save_upload_with_progress(uploaded_zip, zip_temp_path, label="Step 1/4 · Saving ZIP to disk")
+
+                # ── STEP 2 / 4 : Extract with progress ────────────────────
+                extracted = extract_zip_with_progress(zip_temp_path, extract_dir, label="Step 2/4 · Extracting archive")
 
                 # Collect PDFs (mirrors Colab script)
                 pdf_files = []
@@ -331,29 +448,66 @@ The green Ghostscript status badge will appear on this page automatically.
                 if not pdf_files:
                     st.error("No PDF files found inside the uploaded ZIP.")
                 else:
-                    st.write(f"Total PDFs: **{len(pdf_files)}** — compressing with Ghostscript `/ebook` + qpdf…")
-                    progress_bar = st.progress(0)
+                    st.markdown(
+                        f"**Total PDFs found:** `{len(pdf_files)}`  ·  "
+                        f"**Engine:** Ghostscript `/ebook` + qpdf linearisation"
+                    )
 
+                    # ── STEP 3 / 4 : Compress with per-file progress ──────
+                    comp_bar = st.progress(0.0, text=f"Step 3/4 · Compressing… 0 %  (0 / {len(pdf_files)} PDFs)")
+                    last_pct = [-1]
                     def progress_cb(idx, total, res):
-                        progress_bar.progress(idx / total)
+                        pct_int = int((idx / total) * 100)
+                        if pct_int != last_pct[0]:
+                            note = ""
+                            if res and "name" in res:
+                                note = f" · last: {res['name'][:40]}"
+                            comp_bar.progress(
+                                idx / total,
+                                text=(f"Step 3/4 · Compressing… {pct_int} %  "
+                                      f"({idx} / {total} PDFs{note})")
+                            )
+                            last_pct[0] = pct_int
 
-                    # Raises RuntimeError if GS vanished between page load & click
                     c_count, results = compressor.compress_bulk(
                         pdf_files=pdf_files,
                         gs_exe=diags["ghostscript"]["executable"],
                         progress_callback=progress_cb
                     )
+                    comp_bar.progress(
+                        1.0,
+                        text=f"✅ Step 3/4 · Compression complete — 100 %  ({c_count} / {len(pdf_files)} PDFs)"
+                    )
 
-                    # Bundle output into ZIP
+                    # ── STEP 4 / 4 : Package final ZIP with progress ─────
                     final_zip_path = os.path.join(
                         st.session_state.temp_dir, f"compressed_pdfs_{run_id}.zip"
                     )
-                    with zipfile.ZipFile(final_zip_path, "w", zipfile.ZIP_DEFLATED) as z:
-                        for root, _, files in os.walk(compressed_dir):
-                            for fname in files:
-                                z.write(os.path.join(root, fname), arcname=fname)
+                    to_pack = []
+                    for root, _, files in os.walk(compressed_dir):
+                        for fname in files:
+                            full = os.path.join(root, fname)
+                            to_pack.append((full, fname))
+                    pack_total = len(to_pack)
+                    if pack_total > 0:
+                        pack_bar = st.progress(
+                            0.0, text=f"Step 4/4 · Packaging ZIP… 0 %  (0 / {pack_total} files)"
+                        )
+                        with zipfile.ZipFile(final_zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+                            for i, (full, arc) in enumerate(to_pack, 1):
+                                z.write(full, arcname=arc)
+                                pct_dec = i / pack_total
+                                pct_int = int(pct_dec * 100)
+                                pack_bar.progress(
+                                    pct_dec,
+                                    text=(f"Step 4/4 · Packaging ZIP… {pct_int} %  "
+                                          f"({i} / {pack_total} files)")
+                                )
+                        pack_bar.progress(
+                            1.0, text=f"✅ Step 4/4 · ZIP ready — 100 %  ({pack_total} files)"
+                        )
 
-                    st.success(f"Compression complete! Processed {c_count} / {len(pdf_files)} PDFs.")
+                    st.success(f"🎉 Compression complete! Processed {c_count} / {len(pdf_files)} PDFs.")
 
                     # ── Report (mirrors Colab script output format) ───────────
                     report_rows              = []
@@ -386,7 +540,8 @@ The green Ghostscript status badge will appear on this page automatically.
                             data=fh,
                             file_name="compressed_pdfs.zip",
                             mime="application/zip",
-                            type="primary"
+                            type="primary",
+                            use_container_width=True
                         )
 
             except RuntimeError as e:
@@ -430,7 +585,28 @@ elif view == "✉️ Offer Letter Mailer":
     st.success(f"🟢 SMTP ready via {smtp_config['user']}")
 
     csv_uploader = st.file_uploader("1. Upload Candidate CSV", type=[".csv"], key="mailer_csv")
-    zip_uploader = st.file_uploader("2. Upload Offer Letters ZIP", type=[".zip"], key="mailer_zip")
+    zip_uploader = st.file_uploader("2. Upload Offer Letters ZIP", type=[".zip"], key="mailer_zip",
+                                    help="ZIP should contain PDF offer letters with Internship ID in the filename.")
+
+    # ── ZIP upload status card ────────────────────────────────────────────────
+    if zip_uploader is not None:
+        up_name = zip_uploader.name
+        up_size = zip_uploader.size
+        up_col1, up_col2 = st.columns([2, 1])
+        with up_col1:
+            st.markdown(
+                f"<div style='background:#F2ECFA;border:1px solid #D5C9F0;border-radius:8px;"
+                f"padding:10px 14px;margin-bottom:10px;'>"
+                f"<strong style='color:#5E4B7A;'>📦 ZIP Ready</strong><br>"
+                f"<span style='font-size:12px;color:#666;'>{up_name}</span><br>"
+                f"<span style='font-size:12px;color:#333;font-weight:600;'>"
+                f"Size: {human_readable_size(up_size)}</span>"
+                f"</div>",
+                unsafe_allow_html=True
+            )
+        with up_col2:
+            st.metric("Upload Status", "✅ 100 %", "File received")
+        st.divider()
 
     if csv_uploader and zip_uploader:
         run_id          = uuid.uuid4().hex[:6]
@@ -438,13 +614,17 @@ elif view == "✉️ Offer Letter Mailer":
         os.makedirs(pdf_extract_dir, exist_ok=True)
         zip_temp_path   = os.path.join(st.session_state.temp_dir, f"mail_zip_{run_id}.zip")
 
-        with open(zip_temp_path, "wb") as fh:
-            fh.write(zip_uploader.getbuffer())
-
         try:
-            with zipfile.ZipFile(zip_temp_path, "r") as z:
-                z.extractall(pdf_extract_dir)
+            # ── STEP 1 / 2 : Save ZIP to disk with progress ───────────
+            save_upload_with_progress(zip_uploader, zip_temp_path, label="Step 1/3 · Saving Offer Letters ZIP")
 
+            # ── STEP 2 / 2 : Extract with progress ────────────────────
+            extracted = extract_zip_with_progress(zip_temp_path, pdf_extract_dir, label="Step 2/3 · Extracting PDFs")
+            pdf_count = sum(1 for _, fp in extracted if fp.lower().endswith(".pdf"))
+            st.info(f"📄 Extracted {pdf_count} PDF files for matching.")
+
+            # ── STEP 3 / 3 : Match + Build preview ────────────────────
+            match_bar = st.progress(0.0, text="Step 3/3 · Matching PDF → Candidate… 0 %")
             df        = parse_and_clean_csv(csv_uploader)
             name_col  = next((c for c in df.columns if c.lower() in ["full name", "name"]), None)
             email_col = next((c for c in df.columns if c.lower() in ["email address", "email"]), None)
@@ -452,11 +632,12 @@ elif view == "✉️ Offer Letter Mailer":
 
             if not name_col or not email_col or not id_col:
                 st.error("CSV missing required columns: 'Full Name', 'Email Address', 'Internship ID'.")
+                match_bar.empty()
             else:
                 df = df.dropna(subset=[name_col, email_col])
                 candidates_list = []
-
-                for idx, row in df.iterrows():
+                total_rows = len(df)
+                for i, (idx, row) in enumerate(df.iterrows(), 1):
                     name    = str(row[name_col]).strip()
                     email   = str(row[email_col]).strip()
                     raw_id  = str(row[id_col]).strip() if not pd.isna(row[id_col]) else ""
@@ -485,6 +666,14 @@ elif view == "✉️ Offer Letter Mailer":
                         "PDF Path":     matched_path,
                         "Match":        "✔ MATCH" if matched_path else "✘ NO MATCH"
                     })
+                    if total_rows > 0:
+                        pct_dec = min(i / total_rows, 1.0)
+                        pct_int = int(pct_dec * 100)
+                        match_bar.progress(
+                            pct_dec,
+                            text=f"Step 3/3 · Matching PDF → Candidate… {pct_int} %  ({i} / {total_rows})"
+                        )
+                match_bar.progress(1.0, text=f"✅ Step 3/3 · Matching complete — 100 %  ({total_rows} candidates)")
 
                 st.subheader("Candidate Match Checklist")
                 edited_df = st.data_editor(
@@ -912,27 +1101,50 @@ elif view == "🔲 Certificate QR Generator":
         st.info(f"**Current saved defaults:** X={qr_x_val}, QR Width={qr_width_val}, Bottom Margin={qr_margin_val}")
 
     csv_uploader = st.file_uploader("1. Upload Candidate CSV", type=[".csv"], key="qr_csv")
-    zip_uploader = st.file_uploader("2. Upload Certificates ZIP", type=[".zip"], key="qr_zip")
+    zip_uploader = st.file_uploader("2. Upload Certificates ZIP", type=[".zip"], key="qr_zip",
+                                    help="ZIP should contain PDF certificates where each filename matches an Internship ID.")
+
+    # ── ZIP upload status card ────────────────────────────────────────────────
+    if zip_uploader is not None:
+        up_name = zip_uploader.name
+        up_size = zip_uploader.size
+        up_col1, up_col2 = st.columns([2, 1])
+        with up_col1:
+            st.markdown(
+                f"<div style='background:#F2ECFA;border:1px solid #D5C9F0;border-radius:8px;"
+                f"padding:10px 14px;margin-bottom:10px;'>"
+                f"<strong style='color:#5E4B7A;'>📦 Certificates ZIP Ready</strong><br>"
+                f"<span style='font-size:12px;color:#666;'>{up_name}</span><br>"
+                f"<span style='font-size:12px;color:#333;font-weight:600;'>"
+                f"Size: {human_readable_size(up_size)}</span>"
+                f"</div>",
+                unsafe_allow_html=True
+            )
+        with up_col2:
+            st.metric("Upload Status", "✅ 100 %", "File received")
+        st.divider()
 
     if csv_uploader and zip_uploader:
-        if st.button("Generate & Apply QR Codes", type="primary"):
+        if st.button("Generate & Apply QR Codes", type="primary", use_container_width=True):
             run_id = uuid.uuid4().hex[:6]
             pdf_extract_dir = os.path.join(st.session_state.temp_dir, f"ext_qr_{run_id}")
             output_dir = os.path.join(st.session_state.temp_dir, f"qr_out_{run_id}")
             os.makedirs(pdf_extract_dir, exist_ok=True)
             os.makedirs(output_dir, exist_ok=True)
-            
+
             zip_temp_path = os.path.join(st.session_state.temp_dir, f"qr_in_{run_id}.zip")
             out_zip_path = os.path.join(st.session_state.temp_dir, f"certificates_with_qr_{run_id}.zip")
 
-            with open(zip_temp_path, "wb") as fh:
-                fh.write(zip_uploader.getbuffer())
-
             try:
-                # 1. Parse CSV
+                # ── STEP 1 / 5 : Save ZIP to disk with progress ───────────
+                save_upload_with_progress(zip_uploader, zip_temp_path, label="Step 1/5 · Saving Certificates ZIP")
+
+                # ── STEP 2 / 5 : Parse CSV ────────────────────────────────
+                parse_bar = st.progress(0.0, text="Step 2/5 · Parsing CSV…")
                 df = parse_and_clean_csv(csv_uploader)
                 id_col = next((c for c in df.columns if c.lower() in ["internship id", "id"]), None)
-                
+                parse_bar.progress(1.0, text="✅ Step 2/5 · CSV parsed — 100 %")
+
                 if not id_col:
                     st.error("CSV missing required column: 'Internship ID'.")
                 else:
@@ -940,27 +1152,46 @@ elif view == "🔲 Certificate QR Generator":
                     ids = [id_ for id_ in ids if id_]
                     st.info(f"Found {len(ids)} certificate IDs in CSV.")
 
-                    # 2. Extract ZIP
-                    with zipfile.ZipFile(zip_temp_path, "r") as z:
-                        z.extractall(pdf_extract_dir)
+                    # ── STEP 3 / 5 : Extract ZIP ─────────────────────────
+                    extracted = extract_zip_with_progress(zip_temp_path, pdf_extract_dir,
+                                                          label="Step 3/5 · Extracting Certificates")
+                    pdf_count = sum(1 for _, fp in extracted if fp.lower().endswith(".pdf"))
+                    st.info(f"📄 Extracted {pdf_count} PDF certificate files.")
 
-                    # 3. Build mapping: filename (lowercase) -> full path
+                    # ── Build mapping: filename (lowercase) -> full path ──
+                    map_bar = st.progress(0.0, text=f"Step 3b/5 · Indexing PDFs… 0 / {pdf_count}")
                     pdf_files = {}
+                    idx = 0
                     for root, _, files in os.walk(pdf_extract_dir):
                         for f in files:
                             if f.lower().endswith(".pdf"):
                                 pdf_files[f.lower()] = os.path.join(root, f)
+                                idx += 1
+                                if pdf_count > 0:
+                                    map_bar.progress(
+                                        idx / pdf_count,
+                                        text=f"Step 3b/5 · Indexing PDFs… {int(idx*100/pdf_count)} %  ({idx} / {pdf_count})"
+                                    )
+                    map_bar.progress(1.0, text=f"✅ Step 3b/5 · Indexed {len(pdf_files)} PDFs — 100 %")
 
                     if not pdf_files:
                         st.error("No PDF files found inside the uploaded ZIP.")
                     else:
-                        st.write("Processing certificates...")
-                        progress_bar = st.progress(0)
-                        
+                        # ── STEP 4 / 5 : Process QR overlay with progress ─
+                        qr_bar = st.progress(
+                            0.0, text=f"Step 4/5 · Overlaying QR codes… 0 %  (0 / {len(ids)} certificates)"
+                        )
+                        last_pct = [-1]
                         def progress_cb(idx, total):
-                            progress_bar.progress(idx / total)
+                            pct_int = int((idx / total) * 100)
+                            if pct_int != last_pct[0]:
+                                qr_bar.progress(
+                                    idx / total,
+                                    text=(f"Step 4/5 · Overlaying QR codes… {pct_int} %  "
+                                          f"({idx} / {total} certificates)")
+                                )
+                                last_pct[0] = pct_int
 
-                        # 4. Process
                         success_count, failed_ids, page_height, qr_y = qr_wrapper.process_certificates_batch(
                             pdf_files=pdf_files,
                             ids=ids,
@@ -970,14 +1201,40 @@ elif view == "🔲 Certificate QR Generator":
                             bottom_margin=bottom_margin,
                             progress_callback=progress_cb
                         )
+                        qr_bar.progress(
+                            1.0,
+                            text=(f"✅ Step 4/5 · QR overlay complete — 100 %  "
+                                  f"(Success: {success_count}, Failed: {len(failed_ids)})")
+                        )
 
-                        # 5. Bundle Output
-                        with zipfile.ZipFile(out_zip_path, "w", zipfile.ZIP_DEFLATED) as z:
-                            for root, _, files in os.walk(output_dir):
-                                for f in files:
-                                    z.write(os.path.join(root, f), arcname=f)
+                        # ── STEP 5 / 5 : Bundle final ZIP with progress ────
+                        pack_list = []
+                        for root, _, files in os.walk(output_dir):
+                            for f in files:
+                                pack_list.append((os.path.join(root, f), f))
+                        pack_total = len(pack_list)
+                        if pack_total > 0:
+                            pack_bar = st.progress(
+                                0.0, text=f"Step 5/5 · Packaging ZIP… 0 %  (0 / {pack_total} files)"
+                            )
+                            with zipfile.ZipFile(out_zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+                                for i, (full, arc) in enumerate(pack_list, 1):
+                                    z.write(full, arcname=arc)
+                                    pct_dec = i / pack_total
+                                    pct_int = int(pct_dec * 100)
+                                    pack_bar.progress(
+                                        pct_dec,
+                                        text=(f"Step 5/5 · Packaging ZIP… {pct_int} %  "
+                                              f"({i} / {pack_total} files)")
+                                    )
+                            pack_bar.progress(
+                                1.0, text=f"✅ Step 5/5 · ZIP ready — 100 %  ({pack_total} certificates)"
+                            )
 
-                        st.success(f"Successfully processed {success_count} certificates! (Page Height: {page_height} pt, QR Y: {qr_y:.2f} pt)")
+                        st.success(
+                            f"🎉 Successfully processed {success_count} certificates! "
+                            f"(Page Height: {page_height} pt, QR Y: {qr_y:.2f} pt)"
+                        )
                         if failed_ids:
                             with st.expander(f"❌ Failed ({len(failed_ids)})"):
                                 for err in failed_ids:
@@ -990,7 +1247,8 @@ elif view == "🔲 Certificate QR Generator":
                                     data=fh,
                                     file_name="certificates_with_qr.zip",
                                     mime="application/zip",
-                                    type="primary"
+                                    type="primary",
+                                    use_container_width=True
                                 )
 
             except Exception as e:
