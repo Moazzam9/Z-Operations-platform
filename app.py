@@ -75,6 +75,15 @@ def seed_database_once():
         for key, val in tpl_defaults.items():
             if not db.query(SystemSetting).filter_by(key=key).first():
                 db.add(SystemSetting(key=key, value=val))
+
+        qr_defaults = {
+            "qr_x":             "400",
+            "qr_width":         "70",
+            "qr_bottom_margin": "60"
+        }
+        for key, val in qr_defaults.items():
+            if not db.query(SystemSetting).filter_by(key=key).first():
+                db.add(SystemSetting(key=key, value=val))
         db.commit()
 
 
@@ -857,12 +866,50 @@ elif view == "🔲 Certificate QR Generator":
     </div>
     """, unsafe_allow_html=True)
 
-    with st.expander("QR Code Configuration", expanded=False):
-        col_x, col_w, col_m = st.columns(3)
-        qr_x = col_x.number_input("X Coordinate (points from left)", value=400, step=10)
-        qr_width = col_w.number_input("QR Width (points)", value=70, step=5)
-        bottom_margin = col_m.number_input("Bottom Margin (points)", value=60, step=5)
+    with get_db_session() as db:
+        qr_x_val     = int(SystemSetting.get(db, "qr_x",             "400"))
+        qr_width_val = int(SystemSetting.get(db, "qr_width",         "70"))
+        qr_margin_val= int(SystemSetting.get(db, "qr_bottom_margin", "60"))
+
+    with st.expander("QR Code Configuration", expanded=True):
+        st.markdown("**Adjust QR overlay position and size.** Values are saved to the database and persist across sessions & redeploys.")
         st.caption("Default values are optimized for Zynvex Certificates. (60 points ≈ 0.83 inch)")
+
+        with st.form("qr_config_form"):
+            col_x, col_w, col_m = st.columns(3)
+            qr_x = col_x.number_input("X Coordinate (points from left)",
+                                      value=qr_x_val, step=10, key="qr_x_inp")
+            qr_width = col_w.number_input("QR Width (points)",
+                                          value=qr_width_val, step=5, key="qr_width_inp")
+            bottom_margin = col_m.number_input("Bottom Margin (points)",
+                                               value=qr_margin_val, step=5, key="qr_margin_inp")
+            save_col, _, reset_col = st.columns([1, 2, 1])
+            with save_col:
+                if st.form_submit_button("💾 Save as Default", use_container_width=True):
+                    with get_db_session() as db2:
+                        SystemSetting.set(db2, "qr_x",             str(int(qr_x)))
+                        SystemSetting.set(db2, "qr_width",         str(int(qr_width)))
+                        SystemSetting.set(db2, "qr_bottom_margin", str(int(bottom_margin)))
+                        db2.commit()
+                        vx = SystemSetting.get(db2, "qr_x")
+                        vw = SystemSetting.get(db2, "qr_width")
+                        vm = SystemSetting.get(db2, "qr_bottom_margin")
+                        if vx == str(int(qr_x)) and vw == str(int(qr_width)) and vm == str(int(bottom_margin)):
+                            st.success(f"QR defaults saved! (X={vx}, W={vw}, Margin={vm})")
+                        else:
+                            st.warning("Settings may not have persisted — please check DB permissions.")
+                    st.rerun()
+            with reset_col:
+                if st.form_submit_button("↺ Restore Defaults", use_container_width=True):
+                    with get_db_session() as db2:
+                        SystemSetting.set(db2, "qr_x",             "400")
+                        SystemSetting.set(db2, "qr_width",         "70")
+                        SystemSetting.set(db2, "qr_bottom_margin", "60")
+                        db2.commit()
+                    st.success("QR settings reset to factory defaults.")
+                    st.rerun()
+
+        st.info(f"**Current saved defaults:** X={qr_x_val}, QR Width={qr_width_val}, Bottom Margin={qr_margin_val}")
 
     csv_uploader = st.file_uploader("1. Upload Candidate CSV", type=[".csv"], key="qr_csv")
     zip_uploader = st.file_uploader("2. Upload Certificates ZIP", type=[".zip"], key="qr_zip")
@@ -1147,7 +1194,9 @@ elif view == "🧹 CSV Deduplicator & Formatter":
 elif view == "⚙️ Portal Settings":
     st.markdown("<h1 class='main-header'>Portal Settings</h1>", unsafe_allow_html=True)
 
-    tab1, tab2, tab3 = st.tabs(["📧 SMTP Credentials", "💬 WhatsApp Default Links", "📝 Email Templates"])
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "📧 SMTP Credentials", "💬 WhatsApp Default Links", "📝 Email Templates", "🔲 QR Code Defaults"
+    ])
 
     # ── SMTP ──────────────────────────────────────────────────────────────────
     with tab1:
@@ -1156,6 +1205,9 @@ elif view == "⚙️ Portal Settings":
             s_host = SystemSetting.get(db, "smtp_host", "")
             s_port = SystemSetting.get(db, "smtp_port", "587")
             s_user = SystemSetting.get(db, "smtp_user", "")
+            s_pass_saved = bool(SystemSetting.get(db, "smtp_password", ""))
+
+        st.info(f"Status: {'🟢 Password is configured' if s_pass_saved else '🔴 Password NOT set'}")
 
         with st.form("smtp_form"):
             host_val = st.text_input("SMTP Server Host", value=s_host)
@@ -1163,7 +1215,7 @@ elif view == "⚙️ Portal Settings":
             user_val = st.text_input("Sender Email Address", value=s_user)
             pass_val = st.text_input("SMTP App Password", type="password",
                                      placeholder="Leave blank to keep existing password")
-            if st.form_submit_button("Save SMTP Settings"):
+            if st.form_submit_button("💾 Save SMTP Settings", use_container_width=True):
                 with get_db_session() as db:
                     SystemSetting.set(db, "smtp_host", host_val.strip())
                     SystemSetting.set(db, "smtp_port", port_val.strip())
@@ -1171,7 +1223,13 @@ elif view == "⚙️ Portal Settings":
                     if pass_val:
                         SystemSetting.set(db, "smtp_password", pass_val.strip())
                     db.commit()
-                st.success("SMTP settings saved.")
+                    v_host = SystemSetting.get(db, "smtp_host")
+                    v_port = SystemSetting.get(db, "smtp_port")
+                    v_user = SystemSetting.get(db, "smtp_user")
+                    if v_host == host_val.strip() and v_port == port_val.strip() and v_user == user_val.strip():
+                        st.success(f"✅ SMTP settings saved & verified. ({v_user} @ {v_host}:{v_port})")
+                    else:
+                        st.warning("⚠️ Settings may not have persisted — DB permission issue possible.")
                 st.rerun()
 
     # =========================================================================
@@ -1221,7 +1279,7 @@ elif view == "⚙️ Portal Settings":
             current_link = next((l["group_link"] for l in links_list if l["role"] == edit_role), "")
             with st.form("wa_edit_form"):
                 new_link = st.text_input("New WhatsApp Group Link URL", value=current_link)
-                if st.form_submit_button("Update Link"):
+                if st.form_submit_button("💾 Update Link", use_container_width=True):
                     if not new_link.strip():
                         st.error("Link URL cannot be empty.")
                     else:
@@ -1230,7 +1288,14 @@ elif view == "⚙️ Portal Settings":
                             if ex:
                                 ex.group_link = new_link.strip()
                                 db.commit()
-                        st.success(f"Updated link for **{edit_role}**.")
+                                db.expire_all()
+                                verify = db.query(WhatsAppLink).filter_by(role=edit_role).first()
+                                if verify and verify.group_link == new_link.strip():
+                                    st.success(f"✅ Verified: Link updated for **{edit_role}** → `{verify.group_link[:40]}…`")
+                                else:
+                                    st.warning("⚠️ Save not verified — possible DB permission issue.")
+                            else:
+                                st.error("Program not found in DB.")
                         st.rerun()
             st.divider()
 
@@ -1241,7 +1306,7 @@ elif view == "⚙️ Portal Settings":
                                      placeholder="e.g. Frontend Development")
             new_url  = st.text_input("WhatsApp Group Link URL",
                                      placeholder="https://chat.whatsapp.com/...")
-            if st.form_submit_button("Add Program Link"):
+            if st.form_submit_button("➕ Add Program Link", use_container_width=True):
                 if not new_role.strip() or not new_url.strip():
                     st.error("Both Program name and Link URL are required.")
                 else:
@@ -1253,7 +1318,12 @@ elif view == "⚙️ Portal Settings":
                         else:
                             db.add(WhatsAppLink(role=norm, group_link=new_url.strip()))
                         db.commit()
-                    st.success(f"Saved link for **{norm}**.")
+                        db.expire_all()
+                        verify = db.query(WhatsAppLink).filter_by(role=norm).first()
+                        if verify and verify.group_link == new_url.strip():
+                            st.success(f"✅ Verified: Saved **{norm}** → `{verify.group_link[:40]}…`")
+                        else:
+                            st.warning("⚠️ Save not verified — possible DB permission issue.")
                     st.rerun()
 
         # -- Delete program ---------------------------------------------------
@@ -1262,11 +1332,16 @@ elif view == "⚙️ Portal Settings":
             st.markdown("#### Remove Program Link")
             del_role = st.selectbox("Select program to remove",
                                     [l["role"] for l in links_list], key="del_role_sel")
-            if st.button("Delete This Program Link", type="primary"):
+            if st.button("🗑️ Delete This Program Link", type="primary", use_container_width=True):
                 with get_db_session() as db:
                     db.query(WhatsAppLink).filter_by(role=del_role).delete()
                     db.commit()
-                st.toast(f"Removed link for '{del_role}'", icon="🗑️")
+                    db.expire_all()
+                    verify = db.query(WhatsAppLink).filter_by(role=del_role).first()
+                    if verify is None:
+                        st.toast(f"✅ Verified removed: '{del_role}'", icon="🗑️")
+                    else:
+                        st.warning("⚠️ Deletion not verified — possible DB permission issue.")
                 st.rerun()
 
     # =========================================================================
@@ -1342,16 +1417,23 @@ elif view == "⚙️ Portal Settings":
 
             btn_save, btn_reset = st.columns(2)
             with btn_save:
-                if st.button("Save Template", type="primary", use_container_width=True):
+                if st.button("💾 Save Template", type="primary", use_container_width=True):
                     with get_db_session() as db:
                         SystemSetting.set(db, save_subject_key, ed_subject)
                         SystemSetting.set(db, save_html_key,    ed_html)
                         SystemSetting.set(db, save_plain_key,   ed_plain)
                         db.commit()
-                    st.success("Template saved! Used automatically on next send.")
+                        db.expire_all()
+                        v_subject = SystemSetting.get(db, save_subject_key)
+                        v_html    = SystemSetting.get(db, save_html_key)
+                        v_plain   = SystemSetting.get(db, save_plain_key)
+                        if v_subject == ed_subject and v_html == ed_html and v_plain == ed_plain:
+                            st.success(f"✅ Template verified. Subject: `{v_subject[:50]}…`")
+                        else:
+                            st.warning("⚠️ Template not persisted — check DB permissions.")
                     st.rerun()
             with btn_reset:
-                if st.button("Reset to Default", use_container_width=True):
+                if st.button("↺ Reset to Default", use_container_width=True):
                     with get_db_session() as db:
                         if is_offer:
                             SystemSetting.set(db, "offer_subject", emailer.OFFER_LETTER_SUBJECT)
@@ -1368,10 +1450,76 @@ elif view == "⚙️ Portal Settings":
         with preview_col:
             st.markdown("**Live Preview** *(with sample data)*")
             st.caption(f"Sample substitution: {sample_vars}")
-            # Substitute placeholders safely; show raw HTML if substitution fails
             try:
                 preview_html = ed_html.format(**sample_vars)
             except (KeyError, ValueError):
                 preview_html = ed_html
-            # Render in sandboxed iframe
             components.html(preview_html, height=700, scrolling=True)
+
+    # =========================================================================
+    # TAB 4 - QR CODE DEFAULTS (persisted)
+    # =========================================================================
+    with tab4:
+        st.subheader("QR Code Overlay Defaults")
+        st.write(
+            "These defaults control where QR codes are placed on certificates. "
+            "Values are saved to the database and automatically loaded in the QR Generator tool."
+        )
+
+        with get_db_session() as db:
+            qr_x_def     = int(SystemSetting.get(db, "qr_x",             "400"))
+            qr_width_def = int(SystemSetting.get(db, "qr_width",         "70"))
+            qr_margin_def= int(SystemSetting.get(db, "qr_bottom_margin", "60"))
+
+        st.markdown(
+            f"<div style='background:#F2ECFA;border-left:4px solid #7C6A9E;"
+            f"border-radius:4px;padding:10px 14px;margin-bottom:16px;font-size:13px;'>"
+            f"<strong>Current saved defaults:</strong><br>"
+            f"&nbsp;&nbsp;• X Coordinate: <code>{qr_x_def}</code> points<br>"
+            f"&nbsp;&nbsp;• QR Width: <code>{qr_width_def}</code> points<br>"
+            f"&nbsp;&nbsp;• Bottom Margin: <code>{qr_margin_def}</code> points"
+            f"</div>",
+            unsafe_allow_html=True
+        )
+
+        with st.form("settings_qr_form"):
+            c1, c2, c3 = st.columns(3)
+            sq_x = c1.number_input("X Coordinate (points from left)",
+                                   value=qr_x_def, step=10, key="set_qr_x")
+            sq_w = c2.number_input("QR Width (points)",
+                                   value=qr_width_def, step=5, key="set_qr_w")
+            sq_m = c3.number_input("Bottom Margin (points)",
+                                   value=qr_margin_def, step=5, key="set_qr_m")
+
+            b_save, _, b_reset = st.columns([1, 2, 1])
+            with b_save:
+                if st.form_submit_button("💾 Save Defaults", use_container_width=True):
+                    with get_db_session() as db:
+                        SystemSetting.set(db, "qr_x",             str(int(sq_x)))
+                        SystemSetting.set(db, "qr_width",         str(int(sq_w)))
+                        SystemSetting.set(db, "qr_bottom_margin", str(int(sq_m)))
+                        db.commit()
+                        db.expire_all()
+                        vx = SystemSetting.get(db, "qr_x")
+                        vw = SystemSetting.get(db, "qr_width")
+                        vm = SystemSetting.get(db, "qr_bottom_margin")
+                        if vx == str(int(sq_x)) and vw == str(int(sq_w)) and vm == str(int(sq_m)):
+                            st.success(f"✅ Verified! X={vx}, W={vw}, Margin={vm}")
+                        else:
+                            st.warning("⚠️ Save failed to persist — check DB permissions.")
+                    st.rerun()
+            with b_reset:
+                if st.form_submit_button("↺ Restore Factory", use_container_width=True):
+                    with get_db_session() as db:
+                        SystemSetting.set(db, "qr_x",             "400")
+                        SystemSetting.set(db, "qr_width",         "70")
+                        SystemSetting.set(db, "qr_bottom_margin", "60")
+                        db.commit()
+                    st.success("QR defaults reset.")
+                    st.rerun()
+
+        st.divider()
+        st.caption(
+            "💡 Tip: 72 points = 1 inch. Default values (X=400, W=70, Margin=60) "
+            "place the QR in the bottom-right area of a standard US Letter certificate."
+        )
