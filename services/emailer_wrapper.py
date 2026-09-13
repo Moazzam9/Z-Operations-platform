@@ -41,102 +41,313 @@ OFFER_LETTER_HTML = """\
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <title>Internship Offer Letter</title>
+    <title>Internship Offer Letter | Zynvex Solutions</title>
 </head>
-<body style="margin:0; padding:0; background-color:#F7F4FC; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F7F4FC; padding:40px 0;">
+
+<body style="margin:0; padding:0; background-color:#F4F2F8; font-family:Arial, Helvetica, sans-serif; color:#292430;">
+
+    <!-- Preheader -->
+    <div style="display:none; max-height:0; overflow:hidden; opacity:0; color:transparent;">
+        Congratulations! Your official internship offer letter from Zynvex Solutions is attached.
+    </div>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+        style="width:100%; background-color:#F4F2F8; padding:45px 15px;">
+
         <tr>
             <td align="center">
-                <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#FFFFFF; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+
+                <!-- Main Container -->
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                    style="max-width:620px; background-color:#FFFFFF; border-radius:16px; overflow:hidden; box-shadow:0 8px 30px rgba(47,34,69,0.10);">
+
+                    <!-- ================= HEADER ================= -->
                     <tr>
-                        <td style="background-color:#7C6A9E; padding:32px 40px; border-radius:8px 8px 0 0;">
-                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-                                <tr>
-                                    <td style="text-align:center;">
-                                        <p style="margin:0; font-size:22px; font-weight:700; color:#FFFFFF; letter-spacing:0.5px;">Zynvex Solutions</p>
-                                        <p style="margin:6px 0 0; font-size:15px; color:#E3D6F5; font-weight:400;">Internship Offer Letter</p>
-                                    </td>
-                                </tr>
-                            </table>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="padding:40px 40px 30px;">
-                            <p style="margin:0 0 24px; font-size:17px; color:#2D2D2D; line-height:1.5;">
-                                Dear <strong style="color:#5E4B7A;">{name}</strong>,
+                        <td style="background-color:#6F5A8E; padding:38px 40px; text-align:center;">
+
+                            <p style="margin:0; font-size:27px; line-height:1.2; font-weight:700; color:#FFFFFF; letter-spacing:0.5px;">
+                                ZYNVEX SOLUTIONS
                             </p>
-                            <p style="margin:0 0 20px; font-size:16px; color:#2D2D2D; line-height:1.6;">
-                                <strong style="color:#5E4B7A;">Congratulations!</strong> We are pleased to inform you that you have been selected for the <strong>internship program</strong> at Zynvex Solutions. Your official Offer Letter is attached to this email.
+
+                            <p style="margin:10px 0 18px; font-size:14px; line-height:1.5; color:#E9E1F4; letter-spacing:1px; text-transform:uppercase;">
+                                Internship Offer Letter
                             </p>
-                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F7F4FC; border-left:4px solid #8E7CC3; margin:28px 0 28px;">
+
+                            <!-- Batch Badge -->
+                            <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;">
                                 <tr>
-                                    <td style="padding:20px 24px;">
-                                        <p style="margin:0 0 6px; font-size:15px; color:#2D2D2D;"><strong>Internship Start Date:</strong> September 20th, 2026 </p>
-                                        <p style="margin:0; font-size:15px; color:#2D2D2D;"><strong>Confirmation Deadline:</strong> Within 2 days of receiving your offer letter.</p>
-                                    </td>
-                                </tr>
-                            </table>
-                            <p style="margin:0 0 28px; font-size:16px; color:#2D2D2D; line-height:1.6;">
-                                To confirm your internship seat, please complete the registration form and submit the nominal registration fee before the deadline.
-                            </p>
-                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F2ECFA; border-radius:6px; margin-bottom:20px; border:1px solid #D5C9F0;">
-                                <tr>
-                                    <td style="padding:16px 24px;">
-                                        <p style="margin:0; font-size:15px; color:#2D2D2D; line-height:1.5;">
-                                            <strong style="color:#5E4B7A;">To submit your payment details</strong>, please click the <strong>&quot;Register Now&quot;</strong> button below and complete the registration form with the required information.
+                                    <td style="background-color:#FFFFFF; border-radius:20px; padding:8px 21px;">
+                                        <p style="margin:0; font-size:12px; line-height:1.2; font-weight:700; color:#6F5A8E; letter-spacing:1.3px;">
+                                            BATCH 04
                                         </p>
                                     </td>
                                 </tr>
                             </table>
-                            <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto 28px;">
-                                <tr>
-                                    <td align="center" style="background-color:#8E7CC3; border-radius:30px; padding:14px 36px;">
-                                        <a href="https://forms.gle/t5rRd1ar6qiE43yz5" target="_blank" style="font-size:15px; font-weight:600; color:#FFFFFF; text-decoration:none; letter-spacing:0.3px; display:inline-block;">Register Now</a>
-                                    </td>
-                                </tr>
-                            </table>
-                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F7F4FC; border-radius:6px; margin-bottom:28px;">
-                                <tr>
-                                    <td style="padding:18px 24px;">
-                                        <p style="margin:0 0 8px; font-size:15px; color:#2D2D2D;"><strong>Registration Fee</strong></p>
-                                        <p style="margin:0 0 4px; font-size:14px; color:#2D2D2D;"><strong>PKR 320</strong> (Pakistan)</p>
-                                        <p style="margin:0; font-size:14px; color:#2D2D2D;"><strong>USD 1.50</strong> (International)</p>
-                                    </td>
-                                </tr>
-                            </table>
-                            <p style="margin:0 0 20px; font-size:14px; color:#2D2D2D; line-height:1.6;">
-                                <strong style="color:#5E4B7A;">Why a registration fee?</strong><br>
-                                When we launched this internship program, the opportunity was offered completely free of charge. However, due to a lack of serious participation from several candidates in the free batch, we have introduced a nominal registration fee.<br><br>
-                                This fee is applicable only after you have been shortlisted and received your official offer letter. Its purpose is to ensure that only committed and serious candidates confirm their participation in the program.<br><br>
-                                There are absolutely no charges for the internship certificate, and there are no hidden fees or additional costs of any kind.
-                            </p>
-                            <p style="margin:0 0 30px; font-size:14px; color:#B73A3A; line-height:1.6;">
-                                <strong>Important:</strong> This registration link is strictly for selected interns and must not be shared.
-                            </p>
-                            <hr style="border:none; border-top:1px solid #D5C9F0; margin:0 0 28px;">
-                            <p style="margin:0 0 16px; font-size:14px; color:#2D2D2D; line-height:1.6;">
-                                <strong style="color:#5E4B7A;">A note on future opportunities:</strong><br>
-                                Consistent, dedicated, and hardworking candidates may be considered for specific roles within Zynvex Solutions based on their performance and chosen domain. We look forward to seeing what you are capable of!
-                            </p>
-                            <p style="margin:0; font-size:14px; color:#2D2D2D; line-height:1.6;">
-                                Stay committed, give your best, and use this internship to demonstrate your skills and professionalism.
-                            </p>
-                            <hr style="border: 0; border-top: 2px solid #008000; margin: 15px 0;">
-                            <p style="color: #008000; font-size:14px; line-height:1.6;">
-                              The email you received was sent from the company’s official working email address. If you found it in your <strong>Spam or Junk folder</strong>, this does not mean the email is suspicious or unauthorized. The most likely reason is that we sent the same official communication to <strong>multiple candidates simultaneously</strong>, which can sometimes cause email providers to automatically filter the message into Spam or Junk.
-                            </p>
+
                         </td>
                     </tr>
+
+                    <!-- ================= CONTENT ================= -->
                     <tr>
-                        <td style="background-color:#F7F4FC; padding:24px 40px; border-top:1px solid #D5C9F0; border-radius:0 0 8px 8px; text-align:center;">
-                            <p style="margin:0 0 4px; font-size:15px; color:#5E4B7A; font-weight:600;">Best regards,</p>
-                            <p style="margin:0; font-size:17px; color:#2D2D2D; font-weight:700;">Zynvex Solutions</p>
+                        <td style="padding:42px 42px 38px;">
+
+                            <!-- Greeting -->
+                            <p style="margin:0 0 22px; font-size:17px; line-height:1.6; color:#302B38;">
+                                Dear <strong style="color:#6F5A8E;">{name}</strong>,
+                            </p>
+
+                            <!-- Congratulations -->
+                            <p style="margin:0 0 25px; font-size:16px; line-height:1.75; color:#4B4652;">
+                                <strong style="color:#6F5A8E;">Congratulations!</strong>
+                                We are pleased to inform you that you have been selected for an
+                                <strong style="color:#6F5A8E;">internship opportunity</strong>
+                                with <strong>Zynvex Solutions</strong>.
+                            </p>
+
+                            <!-- Offer Letter Notice -->
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                                style="background-color:#F3EFF8; border-radius:12px; margin:0 0 28px;">
+
+                                <tr>
+                                    <td style="padding:22px 24px;">
+
+                                        <p style="margin:0 0 7px; font-size:12px; color:#7A6F84; text-transform:uppercase; letter-spacing:0.9px; font-weight:700;">
+                                            Official Internship Offer
+                                        </p>
+
+                                        <p style="margin:0; font-size:16px; line-height:1.6; color:#4E3B68; font-weight:600;">
+                                            Your official Offer Letter is attached to this email.
+                                        </p>
+
+                                    </td>
+                                </tr>
+
+                            </table>
+
+                            <!-- Internship Details -->
+                            <p style="margin:0 0 14px; font-size:18px; line-height:1.4; color:#302B38; font-weight:700;">
+                                Internship Details
+                            </p>
+
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                                style="background-color:#FBFAFD; border:1px solid #E6DFEE; border-radius:12px; margin:0 0 30px;">
+
+                                <tr>
+                                    <td style="padding:22px 24px;">
+
+                                        <p style="margin:0 0 14px; font-size:14px; color:#706675;">
+                                            <strong style="color:#3C3544;">Internship Start Date</strong><br>
+                                            <span style="font-size:15px; color:#51495A;">
+                                                September 20th, 2026
+                                            </span>
+                                        </p>
+
+                                        <p style="margin:0; font-size:14px; color:#706675;">
+                                            <strong style="color:#3C3544;">Confirmation Deadline</strong><br>
+                                            <span style="font-size:15px; color:#51495A;">
+                                                Within 2 days of receiving your offer letter
+                                            </span>
+                                        </p>
+
+                                    </td>
+                                </tr>
+
+                            </table>
+
+                            <!-- Confirmation Introduction -->
+                            <p style="margin:0 0 24px; font-size:15px; line-height:1.75; color:#4F4955;">
+                                To confirm your internship seat, please complete the registration form and submit the
+                                nominal registration fee before the confirmation deadline.
+                            </p>
+
+                            <!-- Registration Instructions -->
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                                style="background-color:#F5F0FA; border:1px solid #DED3EA; border-radius:12px; margin:0 0 22px;">
+
+                                <tr>
+                                    <td style="padding:20px 22px;">
+
+                                        <p style="margin:0; font-size:14px; line-height:1.7; color:#51495A;">
+                                            <strong style="color:#5E4B7A;">Complete Your Registration</strong><br>
+                                            To submit your payment details and confirm your participation, click the
+                                            <strong>"Register Now"</strong> button below and complete the registration form
+                                            with the required information.
+                                        </p>
+
+                                    </td>
+                                </tr>
+
+                            </table>
+
+                            <!-- Register Button -->
+                            <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 30px;">
+
+                                <tr>
+                                    <td align="center" style="background-color:#7C64A0; border-radius:8px;">
+
+                                        <a href="https://forms.gle/t5rRd1ar6qiE43yz5"
+                                            target="_blank"
+                                            style="display:inline-block; padding:15px 38px; font-size:15px; line-height:1.2; font-weight:700; color:#FFFFFF; text-decoration:none; letter-spacing:0.3px;">
+                                            Register Now →
+                                        </a>
+
+                                    </td>
+                                </tr>
+
+                            </table>
+
+                            <!-- Registration Fee -->
+                            <p style="margin:0 0 14px; font-size:18px; line-height:1.4; color:#302B38; font-weight:700;">
+                                Registration Fee
+                            </p>
+
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                                style="background-color:#FBFAFD; border:1px solid #E6DFEE; border-radius:12px; margin:0 0 28px;">
+
+                                <tr>
+                                    <td style="padding:20px 24px;">
+
+                                        <p style="margin:0 0 8px; font-size:15px; color:#4A4350;">
+                                            <strong style="font-size:18px; color:#4E3B68;">PKR 320</strong>
+                                            <span style="color:#77707C;"> — Pakistan</span>
+                                        </p>
+
+                                        <p style="margin:0; font-size:15px; color:#4A4350;">
+                                            <strong style="font-size:18px; color:#4E3B68;">USD 1.50</strong>
+                                            <span style="color:#77707C;"> — International</span>
+                                        </p>
+
+                                    </td>
+                                </tr>
+
+                            </table>
+
+                            <!-- Why Registration Fee -->
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                                style="background-color:#F9F7FB; border-left:4px solid #8E7CC3; margin:0 0 25px;">
+
+                                <tr>
+                                    <td style="padding:20px 22px;">
+
+                                        <p style="margin:0 0 10px; font-size:15px; color:#51495A; font-weight:700;">
+                                            Why is there a registration fee?
+                                        </p>
+
+                                        <p style="margin:0; font-size:14px; line-height:1.75; color:#625B67;">
+                                            When we launched this internship program, the opportunity was initially offered
+                                            completely free of charge. However, due to limited commitment and participation
+                                            from several candidates in the free batch, we introduced a nominal registration fee.
+                                        </p>
+
+                                        <p style="margin:12px 0 0; font-size:14px; line-height:1.75; color:#625B67;">
+                                            This fee applies only after you have been shortlisted and have received your
+                                            official offer letter. Its purpose is to ensure that confirmed participants are
+                                            genuinely committed to completing the program.
+                                        </p>
+
+                                        <p style="margin:12px 0 0; font-size:14px; line-height:1.75; color:#625B67;">
+                                            There are <strong>no charges for the internship certificate</strong> and
+                                            <strong>no hidden or additional fees</strong>.
+                                        </p>
+
+                                    </td>
+                                </tr>
+
+                            </table>
+
+                            <!-- Important Notice -->
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                                style="background-color:#FFF7F5; border:1px solid #F1D5CE; border-radius:10px; margin:0 0 30px;">
+
+                                <tr>
+                                    <td style="padding:18px 20px;">
+
+                                        <p style="margin:0; font-size:13px; line-height:1.7; color:#75443D;">
+                                            <strong>Important:</strong>
+                                            This registration link is intended exclusively for selected interns.
+                                            Please do not share it with others.
+                                        </p>
+
+                                    </td>
+                                </tr>
+
+                            </table>
+
+                            <!-- Divider -->
+                            <hr style="border:none; border-top:1px solid #E4DEE9; margin:0 0 28px;">
+
+                            <!-- Future Opportunities -->
+                            <p style="margin:0 0 14px; font-size:15px; line-height:1.7; color:#4F4955;">
+                                <strong style="color:#5E4B7A;">
+                                    A Note on Future Opportunities
+                                </strong>
+                            </p>
+
+                            <p style="margin:0 0 20px; font-size:14px; line-height:1.75; color:#625B67;">
+                                Consistent, dedicated, and hardworking candidates may be considered for specific roles
+                                within Zynvex Solutions based on their performance, skills, and chosen domain.
+                                We look forward to seeing what you are capable of achieving.
+                            </p>
+
+                            <p style="margin:0 0 28px; font-size:14px; line-height:1.75; color:#625B67;">
+                                Stay committed, give your best, and use this internship as an opportunity to strengthen
+                                your skills, gain practical experience, and demonstrate your professionalism.
+                            </p>
+
+                            <!-- Email Notice -->
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                                style="border-top:1px solid #E4DEE9;">
+
+                                <tr>
+                                    <td style="padding-top:22px;">
+
+                                        <p style="margin:0; font-size:12px; line-height:1.75; color:#77717D;">
+                                            <strong style="color:#625B68;">Email Notice:</strong>
+                                            This email was sent from the company's official working email address.
+                                            If you find this message in your <strong>Spam or Junk folder</strong>,
+                                            this does not necessarily mean the email is suspicious or unauthorized.
+                                            Email providers may automatically filter messages when similar official
+                                            communications are sent to multiple recipients simultaneously.
+                                        </p>
+
+                                    </td>
+                                </tr>
+
+                            </table>
+
                         </td>
                     </tr>
+
+                    <!-- ================= FOOTER ================= -->
+                    <tr>
+                        <td style="background-color:#F7F5F9; border-top:1px solid #E5DFEA; padding:28px 40px; text-align:center;">
+
+                            <p style="margin:0 0 7px; font-size:14px; color:#756B80;">
+                                Best regards,
+                            </p>
+
+                            <p style="margin:0; font-size:19px; color:#4E3B68; font-weight:700;">
+                                Zynvex Solutions
+                            </p>
+
+                            <p style="margin:9px 0 0; font-size:12px; color:#99919F;">
+                                Internship Program · Batch 04
+                            </p>
+
+                        </td>
+                    </tr>
+
                 </table>
+
+                <!-- Copyright -->
+                <p style="margin:20px 0 0; font-size:11px; color:#938A9C; text-align:center;">
+                    © Zynvex Solutions. All rights reserved.
+                </p>
+
             </td>
         </tr>
     </table>
+
 </body>
 </html>
 """
@@ -169,73 +380,202 @@ CONFIRM_EMAIL_HTML = """\
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <title>Internship Confirmation</title>
+    <title>Internship Confirmation | Zynvex Solutions</title>
 </head>
-<body style="margin:0; padding:0; background-color:#F7F4FC; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F7F4FC; padding:40px 0;">
+
+<body style="margin:0; padding:0; background-color:#F4F2F8; font-family:Arial, Helvetica, sans-serif; color:#25212B;">
+
+    <!-- Preheader -->
+    <div style="display:none; max-height:0; overflow:hidden; opacity:0; color:transparent;">
+        Your internship payment has been confirmed. Welcome to Zynvex Solutions.
+    </div>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+        style="background-color:#F4F2F8; padding:45px 15px;">
         <tr>
             <td align="center">
-                <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#FFFFFF; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+
+                <!-- Main Container -->
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                    style="max-width:620px; background-color:#FFFFFF; border-radius:16px; overflow:hidden; box-shadow:0 8px 30px rgba(47,34,69,0.10);">
+
+                    <!-- Header -->
                     <tr>
-                        <td style="background-color:#7C6A9E; padding:32px 40px; border-radius:8px 8px 0 0; text-align:center;">
-                            <p style="margin:0; font-size:22px; font-weight:700; color:#FFFFFF; letter-spacing:0.5px;">Zynvex Solutions</p>
-                            <p style="margin:6px 0 0; font-size:15px; color:#E3D6F5; font-weight:400;">Internship Confirmation</p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="padding:40px 40px 30px;">
-                            <p style="margin:0 0 24px; font-size:17px; color:#2D2D2D; line-height:1.5;">
-                                Hello <strong style="color:#5E4B7A;">{name}</strong>,
+                        <td style="background-color:#6F5A8E; padding:38px 40px; text-align:center;">
+
+                            <p style="margin:0; font-size:26px; line-height:1.2; font-weight:700; color:#FFFFFF; letter-spacing:0.4px;">
+                                ZYNVEX SOLUTIONS
                             </p>
-                            <p style="margin:0 0 20px; font-size:16px; color:#2D2D2D; line-height:1.6;">
-                                <strong style="color:#5E4B7A;">Congratulations!</strong> Your payment has been confirmed. You have been selected for the <strong>{role}</strong> internship program.
+
+                            <p style="margin:10px 0 18px; font-size:14px; line-height:1.5; color:#E9E1F4; letter-spacing:1px; text-transform:uppercase;">
+                                Internship Confirmation
                             </p>
-                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#FDF0E8; border-left:4px solid #E67E22; margin:0 0 28px;">
+
+                            <!-- Batch Badge -->
+                            <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;">
                                 <tr>
-                                    <td style="padding:20px 24px;">
-                                        <p style="margin:0; font-size:15px; color:#2D2D2D;"><strong>Important Update:</strong> The internship start date has been changed from 20 September to 19 September.</p>
+                                    <td style="background-color:#FFFFFF; border-radius:20px; padding:8px 20px;">
+                                        <p style="margin:0; font-size:12px; line-height:1.2; font-weight:700; color:#6F5A8E; letter-spacing:1.2px;">
+                                            BATCH 04
+                                        </p>
                                     </td>
                                 </tr>
                             </table>
-                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F7F4FC; border-left:4px solid #8E7CC3; margin:28px 0 28px;">
-                                <tr>
-                                    <td style="padding:20px 24px;">
-                                        <p style="margin:0; font-size:15px; color:#2D2D2D;"><strong>Your Internship ID:</strong> {internship_id}</p>
-                                    </td>
-                                </tr>
-                            </table>
-                            <p style="margin:0 0 20px; font-size:16px; color:#2D2D2D; line-height:1.6;">
-                                Please join your dedicated internship group using the button below:
-                            </p>
-                            <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto 28px;">
-                                <tr>
-                                    <td align="center" style="background-color:#8E7CC3; border-radius:30px; padding:14px 36px;">
-                                        <a href="{group_link}" target="_blank" style="font-size:15px; font-weight:600; color:#FFFFFF; text-decoration:none; letter-spacing:0.3px; display:inline-block;">Join WhatsApp Group</a>
-                                    </td>
-                                </tr>
-                            </table>
-                            <p style="margin:0 0 30px; font-size:14px; color:#2D2D2D; line-height:1.6;">
-                                You will receive further instructions and updates through this group.
-                            </p>
-                            <hr style="border:none; border-top:1px solid #D5C9F0; margin:0 0 28px;">
-                            <p style="margin:0; font-size:14px; color:#2D2D2D; line-height:1.6;">
-                                Stay committed and give your best. We look forward to seeing your contributions.
-                            </p>
-                            <p style="color: #008000; font-size:14px; line-height:1.6;">
-                              The email you received was sent from the company's official working email address. If you found it in your <strong>Spam or Junk folder</strong>, this does not mean the email is suspicious or unauthorized. The most likely reason is that we sent the same official communication to <strong>multiple candidates simultaneously</strong>, which can sometimes cause email providers to automatically filter the message into Spam or Junk.
-                            </p>
+
                         </td>
                     </tr>
+
+                    <!-- Content -->
                     <tr>
-                        <td style="background-color:#F7F4FC; padding:24px 40px; border-top:1px solid #D5C9F0; border-radius:0 0 8px 8px; text-align:center;">
-                            <p style="margin:0 0 4px; font-size:15px; color:#5E4B7A; font-weight:600;">Best regards,</p>
-                            <p style="margin:0; font-size:17px; color:#2D2D2D; font-weight:700;">ZYNVEX Team</p>
+                        <td style="padding:42px 42px 35px;">
+
+                            <!-- Greeting -->
+                            <p style="margin:0 0 22px; font-size:17px; line-height:1.6; color:#302B38;">
+                                Dear <strong style="color:#6F5A8E;">{name}</strong>,
+                            </p>
+
+                            <!-- Introduction -->
+                            <p style="margin:0 0 24px; font-size:16px; line-height:1.75; color:#4A4552;">
+                                We are pleased to confirm that your payment has been successfully received and your selection for the
+                                <strong style="color:#6F5A8E;">{role}</strong> internship program has been confirmed.
+                            </p>
+
+                            <!-- Success Banner -->
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                                style="background-color:#F3EFF8; border-radius:12px; margin:0 0 28px;">
+                                <tr>
+                                    <td style="padding:22px 24px;">
+
+                                        <p style="margin:0 0 7px; font-size:13px; color:#756A80; text-transform:uppercase; letter-spacing:0.8px; font-weight:600;">
+                                            Application Status
+                                        </p>
+
+                                        <p style="margin:0; font-size:17px; color:#4E3B68; font-weight:700;">
+                                            ✓ Internship Confirmed
+                                        </p>
+
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- Internship ID -->
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                                style="background-color:#FBFAFD; border:1px solid #E7E0EF; border-radius:12px; margin:0 0 30px;">
+                                <tr>
+                                    <td style="padding:22px 24px;">
+
+                                        <p style="margin:0 0 6px; font-size:13px; color:#81758D; text-transform:uppercase; letter-spacing:0.7px; font-weight:600;">
+                                            Internship ID
+                                        </p>
+
+                                        <p style="margin:0; font-size:19px; color:#30283A; font-weight:700; letter-spacing:0.4px;">
+                                            {internship_id}
+                                        </p>
+
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- WhatsApp Section -->
+                            <p style="margin:0 0 10px; font-size:18px; color:#302B38; font-weight:700;">
+                                Join Your Internship Community
+                            </p>
+
+                            <p style="margin:0 0 24px; font-size:15px; line-height:1.7; color:#5B5562;">
+                                Please join your dedicated internship WhatsApp group using the button below. Important announcements,
+                                instructions, and updates will be shared through this group.
+                            </p>
+
+                            <!-- WhatsApp Button -->
+                            <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 28px;">
+                                <tr>
+                                    <td align="center" style="background-color:#25D366; border-radius:8px;">
+
+                                        <a href="{group_link}"
+                                            target="_blank"
+                                            style="display:inline-block; padding:15px 32px; font-size:15px; line-height:1.2; font-weight:700; color:#FFFFFF; text-decoration:none; letter-spacing:0.2px;">
+                                            Join WhatsApp Group →
+                                        </a>
+
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- Reminder -->
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                                style="background-color:#FFF9F0; border:1px solid #F1DFC1; border-radius:10px; margin:0 0 30px;">
+                                <tr>
+                                    <td style="padding:18px 20px;">
+
+                                        <p style="margin:0; font-size:14px; line-height:1.65; color:#665742;">
+                                            <strong>Please Note:</strong> Make sure you join the WhatsApp group to receive important
+                                            internship-related announcements and instructions.
+                                        </p>
+
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- Closing Message -->
+                            <p style="margin:0 0 18px; font-size:15px; line-height:1.75; color:#4F4A55;">
+                                We are excited to have you join us and look forward to your participation, learning, and contribution
+                                throughout the internship program.
+                            </p>
+
+                            <p style="margin:0 0 28px; font-size:15px; line-height:1.75; color:#4F4A55;">
+                                Stay committed, make the most of this opportunity, and give your best.
+                            </p>
+
+                            <!-- Email Authenticity Notice -->
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                                style="border-top:1px solid #E8E3ED; margin-top:10px;">
+                                <tr>
+                                    <td style="padding-top:22px;">
+
+                                        <p style="margin:0; font-size:12px; line-height:1.7; color:#77717D;">
+                                            <strong style="color:#625B68;">Email Notice:</strong>
+                                            This email was sent from the company's official working email address.
+                                            If you find this message in your <strong>Spam or Junk folder</strong>, please note that
+                                            this may occur when official communications are sent to multiple recipients simultaneously.
+                                        </p>
+
+                                    </td>
+                                </tr>
+                            </table>
+
                         </td>
                     </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td style="background-color:#F7F5F9; border-top:1px solid #E8E3ED; padding:28px 40px; text-align:center;">
+
+                            <p style="margin:0 0 7px; font-size:14px; color:#756B80;">
+                                Best regards,
+                            </p>
+
+                            <p style="margin:0; font-size:18px; color:#4E3B68; font-weight:700;">
+                                ZYNVEX Team
+                            </p>
+
+                            <p style="margin:9px 0 0; font-size:12px; color:#99919F;">
+                                Zynvex Solutions · Internship Program
+                            </p>
+
+                        </td>
+                    </tr>
+
                 </table>
+
+                <!-- Bottom Text -->
+                <p style="margin:20px 0 0; font-size:11px; color:#938A9C; text-align:center;">
+                    © Zynvex Solutions. All rights reserved.
+                </p>
+
             </td>
         </tr>
     </table>
+
 </body>
 </html>
 """
