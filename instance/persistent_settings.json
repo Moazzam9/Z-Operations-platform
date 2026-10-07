@@ -1,0 +1,10 @@
+{
+  "_version": "1.0",
+  "_exported_at": "2026-10-07T11:42:34.424431",
+  "whatsapp_links": {
+    "Test Role": "https://chat.whatsapp.com/test"
+  },
+  "system_settings": {
+    "test_key": "hello_world"
+  }
+}
