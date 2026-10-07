@@ -13,10 +13,14 @@ class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY", "zynvex-operations-super-secret-key-12984712")
     
     # Database settings
-    SQLALCHEMY_DATABASE_URI = os.environ.get(
-        "DATABASE_URL", 
-        f"sqlite:///{os.path.join(INSTANCE_DIR, 'zynvex_portal.db')}"
-    )
+    try:
+        from models import DATABASE_URL
+        SQLALCHEMY_DATABASE_URI = DATABASE_URL
+    except Exception:
+        SQLALCHEMY_DATABASE_URI = os.environ.get(
+            "DATABASE_URL", 
+            f"sqlite:///{os.path.join(INSTANCE_DIR, 'zynvex_portal.db')}"
+        )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     # Upload and Temp directories

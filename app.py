@@ -14,7 +14,12 @@ import fitz  # PyMuPDF
 from sqlalchemy.exc import OperationalError as SAOperationalError
 
 from config import Config
-from models import get_db_session, WhatsAppLink, SystemSetting, retry_on_sqlite_busy
+from models import (
+    get_db_session, WhatsAppLink, SystemSetting,
+    retry_on_sqlite_busy,
+    sync_settings_to_disk, load_settings_from_disk, import_settings_from_dict,
+    export_settings_to_dict, get_db_info, IS_CLOUD_DB,
+)
 import services.generator_wrapper as generator
 import services.compressor_wrapper as compressor
 import services.emailer_wrapper as emailer
@@ -172,15 +177,15 @@ def seed_database_once():
     """
     Seed default records ONLY on the VERY FIRST database boot.
 
-    Strategy:
-      * If sentinel ``_seed_boot_marker`` already exists → short-circuit.
-      * Else, perform the full default insert (WA links, SMTP, templates, QR).
-      * Finally write the sentinel so this function is a true one-shot per DB.
+    Priority order on a fresh/empty database:
+      1. If ``persistent_settings.json`` exists on disk  → restore user's saved
+         templates and WhatsApp links from it (overrides hard-coded defaults).
+         This is the PRIMARY persistence mechanism for Streamlit Community Cloud.
+      2. If no backup exists                             → insert hard-coded
+         factory defaults (WA links, SMTP, templates, QR).
+      3. Write the sentinel so this is a one-shot per DB file.
 
-    The per-row ``if not exists`` guard is kept as a secondary safety net
-    (e.g. for partial DBs created before the sentinel was introduced), but
-    alone it's insufficient because a user who *deletes* a default WA role
-    would get it silently re-inserted on the next redeploy.
+    On subsequent boots the sentinel exits early and nothing is re-seeded.
     """
     if not _db_ok:
         return
@@ -189,8 +194,27 @@ def seed_database_once():
         with get_db_session() as db:
             sentinel = SystemSetting.get(db, _SEED_SENTINEL_KEY, None)
             if sentinel is not None:
+                # DB already seeded — nothing to do.
                 return
 
+            # ── STEP 1: try to restore from persistent JSON backup ──────────
+            json_backup = load_settings_from_disk()
+            if json_backup:
+                try:
+                    wa_n, ss_n = import_settings_from_dict(db, json_backup)
+                    import warnings
+                    warnings.warn(
+                        f"[seed_database_once] Restored from persistent_settings.json: "
+                        f"{wa_n} WA links, {ss_n} settings."
+                    )
+                    # Even if we restored from backup, still apply any keys that
+                    # the backup might be missing (e.g. newly added settings).
+                except Exception as restore_err:
+                    import warnings
+                    warnings.warn(f"[seed_database_once] JSON restore failed: {restore_err}")
+                    json_backup = None   # Fall through to factory defaults
+
+            # ── STEP 2: apply factory defaults for any keys still missing ───
             already_modified = _db_has_any_user_data(db)
 
             default_links = {
@@ -254,6 +278,7 @@ if _db_ok:
         _DB_SEED_RAN = False
 
 
+
 def _db_sentinel_status() -> tuple[bool, str]:
     """
     Diagnose whether the current DB has been seeded before.
@@ -292,43 +317,49 @@ DB_SENTINEL_OK, DB_SENTINEL_MSG = _db_sentinel_status()
 def show_db_writable_banner_if_needed():
     """
     Render a banner at the top of the page that tells the admin, in plain
-    English, exactly what state their database is in:
-
-      * GREEN info  → everything OK (sentinel found + counts)
-      * RED warning → DB file is read-only (Streamlit Cloud readonly mount)
-      * AMBER warn  → DB writable but NO sentinel = fresh empty file on every
-                      redeploy → `instance/zynvex_portal.db` is NOT in the repo.
+    English, exactly what state their database is in.
     """
+    from models import get_db_info
+    db_info = get_db_info()
+    json_ok = db_info.get("persistent_json_exists", False)
+
     if not _db_ok:
         st.warning(
-            f"⚠️ **Database is read-only** — all settings will reset on refresh/redeploy.  \n"
+            f"⚠️ **Database is read-only** — settings will reset on every restart.  \n"
             f"`{_db_msg}`  \n\n"
-            f"On **Streamlit Community Cloud** the repo folder is mounted read-only.  \n"
-            f"**Fix permanently:** commit the updated `instance/zynvex_portal.db` "
-            f"file to your GitHub repo so it's part of every deploy, or switch to "
-            f"an external database (Postgres / Supabase)."
+            f"On **Streamlit Community Cloud** the repo folder is mounted read-only.  \n\n"
+            f"**Permanent fixes (choose one):**  \n"
+            f" **Option A – External PostgreSQL (recommended):** Set `DATABASE_URL` in "
+            f"Streamlit → Settings → Secrets (e.g. Neon, Supabase, Railway).  \n"
+            f" **Option B – JSON backup:** Go to ⚙️ Portal Settings → 💾 Backup & Restore "
+            f"to download `persistent_settings.json`, then commit it to your GitHub repo.  \n"
+            f" **Option C – Commit the DB:** `git add instance/zynvex_portal.db && git commit` "
+            f"(quick fix but resets again on every new deploy)."
         )
         return
 
     if DB_SENTINEL_OK:
-        st.info(
-            f"💾 **DB persistence healthy**  \n{DB_SENTINEL_MSG}"
-        )
+        parts = [DB_SENTINEL_MSG]
+        if json_ok:
+            parts.append("🗂️ JSON backup exists on disk")
+        if IS_CLOUD_DB:
+            parts.append(f"☁️ Cloud DB ({db_info.get('dialect', 'unknown')})")
+        st.info("💾 **DB persistence healthy**  \n" + "  ·  ".join(parts))
     else:
         st.warning(
-            f"🔁 **DB appears fresh (no seed sentinel found)** — if you didn't just "
-            f"install the app for the first time, your `instance/zynvex_portal.db` "
-            f"is being **recreated on every redeploy** and your saved edits (WA links, "
-            f"SMTP, templates, QR defaults) will vanish.  \n\n"
+            f"🔁 **DB appears fresh (no seed sentinel found).**  \n"
+            f"If you didn't just install the app for the first time, your database "
+            f"is being **recreated on every restart** and your saved edits will vanish.  \n\n"
             f"{DB_SENTINEL_MSG}  \n\n"
-            f"**How to fix:**  \n"
-            f" 1. Configure all your WA links / SMTP / templates / QR in the UI.  \n"
-            f" 2. Copy the generated `instance/zynvex_portal.db` from your local or "
-            f"cloud workspace into the cloned `z-operations-platform` repo.  \n"
-            f" 3. `git add instance/zynvex_portal.db` and commit/push to GitHub.  \n"
-            f" 4. Trigger a Streamlit redeploy. From now on your saved values will "
-            f"survive reboots."
+            f"**How to make settings permanent (choose one):**  \n"
+            f" **A – External PostgreSQL (best for Cloud):** Add `DATABASE_URL` to "
+            f"Streamlit Secrets → your settings live in Postgres forever.  \n"
+            f" **B – JSON backup (no external DB needed):** Configure your links/templates, "
+            f"go to ⚙️ Portal Settings → 💾 Backup & Restore → Download JSON → "
+            f"commit `persistent_settings.json` to GitHub. The app auto-restores it on every cold boot.  \n"
+            f" **C – Commit the SQLite DB:** `git add instance/zynvex_portal.db && git push`."
         )
+
 
 
 # ── UNIVERSAL "SAFE SAVE + VERIFY" HELPERS FOR PORTAL SETTINGS ────────────────
@@ -336,7 +367,8 @@ def save_and_verify_system_settings(pairs):
     """
     Write a batch of SystemSetting key→value pairs inside a single session,
     let the context manager commit, then re-read in a FRESH session and
-    verify every value matches. Returns (ok: bool, message: str).
+    verify every value matches. On success also syncs to persistent_settings.json.
+    Returns (ok: bool, message: str).
 
     ``pairs`` is a list/tuple of (key, expected_value).
     """
@@ -365,6 +397,8 @@ def save_and_verify_system_settings(pairs):
                 + ", ".join(mismatches)
             )
         keys_str = ", ".join(k for k, _ in pairs)
+        # ── Persist to disk so it survives Streamlit sleep / cold starts ──────
+        sync_settings_to_disk()
         return True, f"✅ Verified! ({keys_str})"
     except SAOperationalError as e:
         return False, _classify_db_error(e)
@@ -381,6 +415,7 @@ def save_and_verify_whatsapp_link(role, new_link, *, existing_role=None, delete=
       * ``existing_role`` set (may equal role) + ``new_link`` set  → UPDATE
       * ``delete=True``, ``role`` set                           → DELETE row
 
+    On success also syncs to persistent_settings.json.
     Returns (ok: bool, message: str).
     """
     if not _db_ok:
@@ -405,12 +440,14 @@ def save_and_verify_whatsapp_link(role, new_link, *, existing_role=None, delete=
             if delete:
                 gone = db2.query(WhatsAppLink).filter_by(role=target_role).first() is None
                 if gone:
+                    sync_settings_to_disk()
                     return True, f"✅ Verified removed: '{target_role}'"
                 return False, f"⚠️ Row still present after delete: '{target_role}'"
             else:
                 v = db2.query(WhatsAppLink).filter_by(role=role).first()
                 if v and v.group_link == new_link:
                     tail = "…" if len(new_link) > 40 else ""
+                    sync_settings_to_disk()
                     return True, f"✅ Verified: **{role}** → `{new_link[:40]}{tail}`"
                 if not v:
                     return False, f"⚠️ Row missing after save for role '{role}'"
@@ -421,6 +458,7 @@ def save_and_verify_whatsapp_link(role, new_link, *, existing_role=None, delete=
         return False, _classify_db_error(e)
     except Exception as e:
         return False, f"❌ Operation failed: {e}"
+
 
 
 # ── DB-READONLY BANNER (shown globally if storage isn't writable) ─────────────
@@ -1791,9 +1829,11 @@ elif view == "🧹 CSV Deduplicator & Formatter":
 elif view == "⚙️ Portal Settings":
     st.markdown("<h1 class='main-header'>Portal Settings</h1>", unsafe_allow_html=True)
 
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "📧 SMTP Credentials", "💬 WhatsApp Default Links", "📝 Email Templates", "🔲 QR Code Defaults"
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "📧 SMTP Credentials", "💬 WhatsApp Default Links", "📝 Email Templates",
+        "🔲 QR Code Defaults", "💾 Backup & Restore"
     ])
+
 
     # ── SMTP ──────────────────────────────────────────────────────────────────
     with tab1:
@@ -2104,3 +2144,157 @@ elif view == "⚙️ Portal Settings":
             "💡 Tip: 72 points = 1 inch. Default values (X=400, W=70, Margin=60) "
             "place the QR in the bottom-right area of a standard US Letter certificate."
         )
+
+    # =========================================================================
+    # TAB 5 – BACKUP & RESTORE (persistent_settings.json)
+    # =========================================================================
+    with tab5:
+        import json as _json
+
+        st.subheader("Backup & Restore")
+        st.write(
+            "Download a JSON snapshot of all your WhatsApp links and email templates. "
+            "Commit this file to your GitHub repo as `persistent_settings.json` — "
+            "the app will **automatically restore it** on every cold start or after "
+            "Streamlit puts the app to sleep, so your saved changes are permanent."
+        )
+
+        st.markdown(
+            """
+<div style='background:#EAF4EA;border-left:4px solid #4CAF50;border-radius:4px;
+     padding:12px 16px;margin-bottom:16px;font-size:13px;'>
+<strong>How persistent storage works on Streamlit Community Cloud:</strong><br>
+1. <strong>Save</strong> any WhatsApp link or email template in the tabs above.<br>
+2. A <code>persistent_settings.json</code> is automatically written to the repo folder.<br>
+3. <strong>Download</strong> it below and <code>git add persistent_settings.json &amp;&amp; git commit &amp;&amp; git push</code>.<br>
+4. On every future cold boot (sleep, redeploy, restart) the app detects this file
+   and restores all your settings automatically — no DB needed.<br><br>
+<em>Alternatively, set a <code>DATABASE_URL</code> secret (Neon / Supabase / Railway)
+for a fully managed external database.</em>
+</div>""",
+            unsafe_allow_html=True
+        )
+
+        db_info = get_db_info()
+        info_cols = st.columns(3)
+        info_cols[0].metric("Database Type", db_info["dialect"].upper())
+        info_cols[1].metric("Driver", db_info["driver"])
+        info_cols[2].metric(
+            "JSON Backup",
+            "✅ Exists" if db_info["persistent_json_exists"] else "❌ Not created yet"
+        )
+
+        st.divider()
+
+        # ── SECTION A: Download current snapshot ─────────────────────────────
+        st.markdown("#### 📥 Download Current Settings as JSON")
+        try:
+            snapshot = export_settings_to_dict()
+            snapshot_str = _json.dumps(snapshot, indent=2, ensure_ascii=False)
+            wa_count = len(snapshot.get("whatsapp_links", {}))
+            ss_count = len(snapshot.get("system_settings", {}))
+            st.info(
+                f"Snapshot includes **{wa_count}** WhatsApp links and **{ss_count}** system settings "
+                f"(exported at `{snapshot.get('_exported_at', 'n/a')}`)."
+            )
+            st.download_button(
+                label="⬇️ Download persistent_settings.json",
+                data=snapshot_str.encode("utf-8"),
+                file_name="persistent_settings.json",
+                mime="application/json",
+                type="primary",
+                use_container_width=True,
+            )
+        except Exception as snap_err:
+            st.error(f"Could not generate snapshot: {snap_err}")
+
+        st.divider()
+
+        # ── SECTION B: Upload and restore ────────────────────────────────────
+        st.markdown("#### 📤 Restore from JSON Backup")
+        st.caption(
+            "Upload a previously downloaded `persistent_settings.json` to overwrite "
+            "all current settings in the active database. **This cannot be undone.**"
+        )
+        upload_json = st.file_uploader(
+            "Upload persistent_settings.json", type=["json"], key="restore_json_uploader"
+        )
+        if upload_json is not None:
+            try:
+                restore_data = _json.loads(upload_json.read().decode("utf-8"))
+                wa_n = len(restore_data.get("whatsapp_links", {}))
+                ss_n = len(restore_data.get("system_settings", {}))
+                st.info(
+                    f"File contains **{wa_n}** WhatsApp links and **{ss_n}** settings. "
+                    f"Exported at: `{restore_data.get('_exported_at', 'unknown')}`."
+                )
+                confirm_restore = st.checkbox(
+                    "I understand this will overwrite all current settings",
+                    key="confirm_restore_checkbox"
+                )
+                if st.button(
+                    "🔁 Restore Settings from JSON", type="primary",
+                    disabled=not confirm_restore, use_container_width=True
+                ):
+                    if not _db_ok:
+                        st.error(
+                            "Cannot restore — database is read-only on this deployment. "
+                            "Set a `DATABASE_URL` in Streamlit Secrets first."
+                        )
+                    else:
+                        try:
+                            with get_db_session() as rdb:
+                                wa_count_r, ss_count_r = import_settings_from_dict(rdb, restore_data)
+                            sync_settings_to_disk()
+                            st.success(
+                                f"✅ Restored {wa_count_r} WhatsApp links and {ss_count_r} "
+                                f"settings. JSON backup also updated on disk."
+                            )
+                            st.rerun()
+                        except Exception as restore_err:
+                            st.error(f"Restore failed: {restore_err}")
+            except Exception as parse_err:
+                st.error(f"Could not parse uploaded file: {parse_err}")
+
+        st.divider()
+
+        # ── SECTION C: Manual sync ────────────────────────────────────────────
+        st.markdown("#### 🔄 Manual Sync to Disk")
+        st.caption(
+            "Force-write the current database contents to `persistent_settings.json` right now. "
+            "Normally this happens automatically after every save."
+        )
+        if st.button("🔄 Sync Settings to Disk Now", use_container_width=True):
+            ok_sync = sync_settings_to_disk()
+            if ok_sync:
+                st.success(
+                    "✅ Settings synced to `persistent_settings.json`. "
+                    "Download it above and commit to GitHub to make changes permanent."
+                )
+            else:
+                st.warning("⚠️ Sync failed — check that the app folder is writable.")
+
+        # ── SECTION D: Cloud DB setup guide ──────────────────────────────────
+        with st.expander("☁️ Using an External PostgreSQL Database (Advanced)"):
+            st.markdown(
+                """
+**For zero-reset persistence without committing files, use a free cloud PostgreSQL:**
+
+| Provider | Free Tier | Notes |
+|---|---|---|
+| [Neon](https://neon.tech) | 0.5 GB | Serverless, instant start |
+| [Supabase](https://supabase.com) | 500 MB | Full Postgres stack |
+| [Railway](https://railway.app) | \$5 credit/mo | Simple UI |
+
+**Setup steps:**
+1. Create a free database on any provider above.
+2. Copy the **connection string** (starts with `postgresql://...`).
+3. In Streamlit Cloud: **Settings → Secrets** and add:
+   ```toml
+   DATABASE_URL = "postgresql://user:pass@host:5432/dbname"
+   ```
+4. Redeploy — the app will automatically create tables and save all settings there permanently.
+
+No file commits needed. All saves go directly to Postgres.
+                """
+            )
