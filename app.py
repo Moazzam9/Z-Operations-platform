@@ -69,11 +69,301 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-    .main-header { color: #5E4B7A; font-weight: 700; }
-    .card {
-        background-color: #F7F4FC;
-        border-left: 5px solid #7C6A9E;
-        padding: 15px; border-radius: 5px; margin-bottom: 15px;
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+    :root {
+        --zynvex-primary: #5E4B7A;
+        --zynvex-accent: #7C6A9E;
+        --zynvex-light: #F2EEF9;
+        --zynvex-border: rgba(124, 106, 158, 0.25);
+    }
+
+    /* Base typography */
+    html, body, [class*="css"] {
+        font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    /* Main Section Headers */
+    .main-header {
+        font-family: 'Plus Jakarta Sans', sans-serif !important;
+        font-size: 2.15rem !important;
+        font-weight: 800 !important;
+        letter-spacing: -0.025em !important;
+        line-height: 1.25 !important;
+        margin-bottom: 0.35rem !important;
+        color: #443162 !important;
+    }
+
+    /* Sub-descriptions */
+    .view-desc {
+        font-size: 0.96rem;
+        line-height: 1.6;
+        opacity: 0.88;
+        margin-bottom: 1.25rem;
+    }
+
+    /* Universal Adaptive Cards */
+    .card, .zynvex-card {
+        background-color: rgba(124, 106, 158, 0.07) !important;
+        border: 1px solid rgba(124, 106, 158, 0.22) !important;
+        border-left: 4px solid #7C6A9E !important;
+        border-radius: 10px !important;
+        padding: 14px 18px !important;
+        margin-bottom: 16px !important;
+        color: inherit !important;
+    }
+
+    .card strong, .zynvex-card strong {
+        color: inherit !important;
+        font-weight: 700 !important;
+    }
+
+    .card code, .zynvex-card code, .info-banner code {
+        background: rgba(124, 106, 158, 0.15) !important;
+        color: #5E4B7A !important;
+        padding: 2px 7px !important;
+        border-radius: 5px !important;
+        font-size: 0.88em !important;
+        font-family: 'JetBrains Mono', monospace !important;
+        font-weight: 600 !important;
+    }
+
+    /* Status Upload Cards (ZIP / File ready) */
+    .status-card {
+        background: rgba(124, 106, 158, 0.08);
+        border: 1px solid rgba(124, 106, 158, 0.28);
+        border-left: 4px solid #7C6A9E;
+        border-radius: 10px;
+        padding: 12px 16px;
+        margin-bottom: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+    }
+
+    .status-card-header {
+        font-weight: 700;
+        font-size: 0.95rem;
+        color: #5E4B7A;
+    }
+
+    .status-card-filename {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.82rem;
+        color: inherit;
+        opacity: 0.88;
+        word-break: break-all;
+    }
+
+    .status-card-meta {
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: inherit;
+        opacity: 0.92;
+    }
+
+    /* Program Link Cards (Tab 2 Grid) */
+    .link-card {
+        border: 1px solid rgba(124, 106, 158, 0.22);
+        border-radius: 10px;
+        padding: 14px 18px;
+        background: rgba(124, 106, 158, 0.05);
+        margin-bottom: 12px;
+        transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+    .link-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 14px rgba(94, 75, 122, 0.12);
+        border-color: #7C6A9E;
+    }
+    .link-card-role {
+        font-weight: 700;
+        font-size: 0.95rem;
+        color: #5E4B7A;
+        margin-bottom: 6px;
+    }
+    .link-card-url {
+        font-size: 0.83rem;
+        word-break: break-all;
+        font-family: 'JetBrains Mono', monospace;
+    }
+    .link-card-url a {
+        color: #7C6A9E !important;
+        text-decoration: none;
+        font-weight: 500;
+    }
+    .link-card-url a:hover {
+        text-decoration: underline;
+    }
+
+    /* Info & Notice Banners */
+    .info-banner {
+        background: rgba(124, 106, 158, 0.08);
+        border-left: 4px solid #7C6A9E;
+        border-radius: 6px;
+        padding: 12px 16px;
+        margin-bottom: 14px;
+        font-size: 0.92rem;
+        line-height: 1.55;
+        color: inherit;
+    }
+    .info-banner strong {
+        color: #5E4B7A;
+        font-weight: 700;
+    }
+    .info-banner-sub {
+        opacity: 0.82;
+        font-size: 0.86rem;
+    }
+
+    .success-banner {
+        background: rgba(46, 204, 113, 0.08);
+        border: 1px solid rgba(46, 204, 113, 0.25);
+        border-left: 4px solid #2ecc71;
+        border-radius: 8px;
+        padding: 14px 18px;
+        margin-bottom: 16px;
+        font-size: 0.92rem;
+        line-height: 1.55;
+        color: inherit;
+    }
+    .success-banner strong {
+        color: #27ae60;
+        font-weight: 700;
+    }
+
+    /* Sidebar Brand Styling */
+    .sidebar-brand {
+        text-align: center;
+        padding: 6px 0 14px 0;
+    }
+    .sidebar-brand-title {
+        font-size: 1.45rem;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        margin: 0;
+        color: #5E4B7A;
+    }
+    .sidebar-brand-badge {
+        display: inline-block;
+        font-size: 0.68rem;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        background: rgba(124, 106, 158, 0.16);
+        color: #5E4B7A;
+        padding: 3px 10px;
+        border-radius: 20px;
+        margin-top: 5px;
+    }
+
+    /* Compact Database Status Strip */
+    .db-status-strip {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: rgba(124, 106, 158, 0.07);
+        border: 1px solid rgba(124, 106, 158, 0.2);
+        border-radius: 8px;
+        padding: 7px 14px;
+        margin-bottom: 16px;
+        font-size: 0.84rem;
+        color: inherit;
+    }
+    .db-status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background-color: #2ecc71;
+        box-shadow: 0 0 6px rgba(46, 204, 113, 0.6);
+        display: inline-block;
+        flex-shrink: 0;
+    }
+
+    /* Candidate Detail Card (View 5) */
+    .cand-detail-card {
+        background: rgba(124, 106, 158, 0.06);
+        border: 1px solid rgba(124, 106, 158, 0.2);
+        border-radius: 10px;
+        padding: 16px 20px;
+        margin-bottom: 12px;
+        line-height: 1.6;
+    }
+
+    /* Dark Mode Overrides (for Streamlit Dark Theme) */
+    @media (prefers-color-scheme: dark) {
+        .main-header {
+            color: #E2DAF0 !important;
+        }
+        .card, .zynvex-card {
+            background-color: rgba(255, 255, 255, 0.05) !important;
+            border-color: rgba(255, 255, 255, 0.15) !important;
+            border-left-color: #B3A4CD !important;
+        }
+        .card code, .zynvex-card code, .info-banner code {
+            background: rgba(255, 255, 255, 0.14) !important;
+            color: #E2DAF0 !important;
+        }
+        .status-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(255, 255, 255, 0.15);
+            border-left-color: #B3A4CD;
+        }
+        .status-card-header {
+            color: #E2DAF0;
+        }
+        .link-card {
+            background: rgba(255, 255, 255, 0.04);
+            border-color: rgba(255, 255, 255, 0.12);
+        }
+        .link-card-role {
+            color: #E2DAF0;
+        }
+        .link-card-url a {
+            color: #B3A4CD !important;
+        }
+        .info-banner {
+            background: rgba(255, 255, 255, 0.05);
+            border-left-color: #B3A4CD;
+        }
+        .info-banner strong {
+            color: #E2DAF0;
+        }
+        .success-banner {
+            background: rgba(46, 204, 113, 0.1);
+            border-color: rgba(46, 204, 113, 0.3);
+            border-left-color: #2ecc71;
+        }
+        .success-banner strong {
+            color: #2ecc71;
+        }
+        .sidebar-brand-title {
+            color: #E2DAF0;
+        }
+        .sidebar-brand-badge {
+            background: rgba(255, 255, 255, 0.12);
+            color: #E2DAF0;
+        }
+        .db-status-strip {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+        .cand-detail-card {
+            background: rgba(255, 255, 255, 0.04);
+            border-color: rgba(255, 255, 255, 0.14);
+        }
+    }
+
+    /* Button and UI Polish */
+    button[kind="primary"] {
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+        letter-spacing: 0.01em !important;
+        transition: all 0.2s ease !important;
+    }
+    button[kind="primary"]:hover {
+        transform: translateY(-1px) !important;
+        box-shadow: 0 4px 12px rgba(94, 75, 122, 0.3) !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -337,10 +627,17 @@ def show_db_writable_banner_if_needed():
     if DB_SENTINEL_OK:
         parts = [DB_SENTINEL_MSG]
         if json_ok:
-            parts.append("🗂️ JSON backup exists on disk")
+            parts.append("🗂️ JSON backup active")
         if IS_CLOUD_DB:
             parts.append(f"☁️ Cloud DB ({db_info.get('dialect', 'unknown')})")
-        st.info("💾 **DB persistence healthy**  \n" + "  ·  ".join(parts))
+        st.markdown(
+            f"""<div class="db-status-strip">
+                <span class="db-status-dot"></span>
+                <span><strong>Persistence Active:</strong> {" · ".join(parts)}</span>
+            </div>""",
+            unsafe_allow_html=True
+        )
+
     else:
         st.warning(
             f"🔁 **DB appears fresh (no seed sentinel found).**  \n"
@@ -585,11 +882,10 @@ def get_whatsapp_url_custom(cand):
 
 # ── SIDEBAR ───────────────────────────────────────────────────────────────────
 st.sidebar.markdown(
-    "<h2 style='color:#5E4B7A; text-align:center;'>Zynvex Solutions</h2>",
-    unsafe_allow_html=True
-)
-st.sidebar.markdown(
-    "<p style='text-align:center; font-size:12px; margin-top:-10px;'>Operations Portal</p>",
+    """<div class="sidebar-brand">
+        <h2 class="sidebar-brand-title">Zynvex Solutions</h2>
+        <span class="sidebar-brand-badge">Operations Portal</span>
+    </div>""",
     unsafe_allow_html=True
 )
 st.sidebar.divider()
@@ -606,16 +902,22 @@ view = st.sidebar.radio("Independent Toolkit Menu", [
 ])
 
 st.sidebar.divider()
-st.sidebar.markdown("### Session Disk Usage")
+st.sidebar.markdown("### 💾 Session Storage")
 file_count, file_size_str = get_temp_folder_size(st.session_state.temp_dir)
-st.sidebar.write(f"📁 Temp Files: **{file_count}**")
-st.sidebar.write(f"💾 Storage: **{file_size_str}**")
+st.sidebar.markdown(
+    f"""<div style="font-size:0.86rem;line-height:1.7;margin-bottom:10px;">
+        📁 Temp Files: <strong>{file_count}</strong><br>
+        💽 Disk Used: <strong>{file_size_str}</strong>
+    </div>""",
+    unsafe_allow_html=True
+)
 
-if st.sidebar.button("🗑️ Clear Session Temp Files", type="primary"):
+if st.sidebar.button("🗑️ Clear Temp Files", use_container_width=True):
     shutil.rmtree(st.session_state.temp_dir)
     st.session_state.temp_dir = tempfile.mkdtemp()
     st.toast("Temporary session folder cleared!", icon="🗑️")
     st.rerun()
+
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -623,14 +925,15 @@ if st.sidebar.button("🗑️ Clear Session Temp Files", type="primary"):
 # ═════════════════════════════════════════════════════════════════════════════
 if view == "📄 Offer Letter Generator":
     st.markdown("<h1 class='main-header'>Offer Letter PDF Generator</h1>", unsafe_allow_html=True)
-    st.write("Upload candidate CSV and base PDF template to compile customised offer letters and download them as a ZIP.")
+    st.markdown("<p class='view-desc'>Upload candidate CSV and base PDF template to compile customized offer letters and package them into a downloadable ZIP archive.</p>", unsafe_allow_html=True)
 
     st.markdown("""
     <div class="card">
-        <strong>Required CSV columns:</strong>
-        <code>Full Name</code>, <code>Internship Role</code>, <code>Internship ID</code>
+        <strong>📋 Required CSV columns:</strong><br>
+        <code>Full Name</code> &nbsp;·&nbsp; <code>Internship Role</code> &nbsp;·&nbsp; <code>Internship ID</code>
     </div>
     """, unsafe_allow_html=True)
+
 
     csv_file     = st.file_uploader("1. Upload Candidate CSV", type=[".csv"])
     pdf_template = st.file_uploader("2. Upload Base PDF Template (Zynvex_Offer_Letter.pdf)", type=[".pdf"])
@@ -701,10 +1004,9 @@ if view == "📄 Offer Letter Generator":
 # ═════════════════════════════════════════════════════════════════════════════
 elif view == "🗜️ PDF Compressor":
     st.markdown("<h1 class='main-header'>Aggressive PDF Compressor</h1>", unsafe_allow_html=True)
-    st.write(
-        "Upload a ZIP of candidate PDFs. "
-        "Ghostscript **`/ebook`** preset downsamples images to 150 dpi and applies JPEG medium quality, "
-        "then qpdf linearises and recompresses streams — targeting **~75 % size reduction**."
+    st.markdown(
+        "<p class='view-desc'>Upload a ZIP of candidate PDFs. Ghostscript <strong><code>/ebook</code></strong> preset downsamples images to 150 dpi and applies JPEG medium quality, then qpdf linearises and recompresses streams — targeting <strong>~75% size reduction</strong>.</p>",
+        unsafe_allow_html=True
     )
 
     # ── Engine status banner ──────────────────────────────────────────────────
@@ -768,15 +1070,14 @@ The green Ghostscript status badge will appear on this page automatically.
         up_col1, up_col2, up_col3 = st.columns([2, 1, 1])
         with up_col1:
             st.markdown(
-                f"<div style='background:#F2ECFA;border:1px solid #D5C9F0;border-radius:8px;"
-                f"padding:10px 14px;margin-bottom:10px;'>"
-                f"<strong style='color:#5E4B7A;'>📦 File Ready</strong><br>"
-                f"<span style='font-size:12px;color:#666;'>{up_name}</span><br>"
-                f"<span style='font-size:12px;color:#333;font-weight:600;'>"
-                f"Size: {human_readable_size(up_size)}</span>"
-                f"</div>",
+                f"""<div class="status-card">
+                    <div class="status-card-header">📦 File Ready</div>
+                    <div class="status-card-filename">{up_name}</div>
+                    <div class="status-card-meta">Size: {human_readable_size(up_size)}</div>
+                </div>""",
                 unsafe_allow_html=True
             )
+
         with up_col2:
             st.metric("Upload Status", "✅ 100 %", "File received")
         with up_col3:
@@ -929,10 +1230,9 @@ The green Ghostscript status badge will appear on this page automatically.
 # ═════════════════════════════════════════════════════════════════════════════
 elif view == "✉️ Offer Letter Mailer":
     st.markdown("<h1 class='main-header'>Offer Letter Mailer</h1>", unsafe_allow_html=True)
-    st.write(
-        "Upload candidate CSV and a ZIP of generated PDFs. "
-        "The system matches files by Internship ID, shows a preview checklist, "
-        "then emails each candidate with their PDF attached."
+    st.markdown(
+        "<p class='view-desc'>Upload candidate CSV and a ZIP of generated PDFs. The system matches files by Internship ID, presents a verification checklist, and emails each candidate with their PDF offer letter attached.</p>",
+        unsafe_allow_html=True
     )
 
     with get_db_session() as db:
@@ -966,15 +1266,14 @@ elif view == "✉️ Offer Letter Mailer":
         up_col1, up_col2 = st.columns([2, 1])
         with up_col1:
             st.markdown(
-                f"<div style='background:#F2ECFA;border:1px solid #D5C9F0;border-radius:8px;"
-                f"padding:10px 14px;margin-bottom:10px;'>"
-                f"<strong style='color:#5E4B7A;'>📦 ZIP Ready</strong><br>"
-                f"<span style='font-size:12px;color:#666;'>{up_name}</span><br>"
-                f"<span style='font-size:12px;color:#333;font-weight:600;'>"
-                f"Size: {human_readable_size(up_size)}</span>"
-                f"</div>",
+                f"""<div class="status-card">
+                    <div class="status-card-header">📦 Offer Letters ZIP Ready</div>
+                    <div class="status-card-filename">{up_name}</div>
+                    <div class="status-card-meta">Size: {human_readable_size(up_size)}</div>
+                </div>""",
                 unsafe_allow_html=True
             )
+
         with up_col2:
             st.metric("Upload Status", "✅ 100 %", "File received")
         st.divider()
@@ -1105,10 +1404,11 @@ elif view == "✉️ Offer Letter Mailer":
 # ═════════════════════════════════════════════════════════════════════════════
 elif view == "💬 Role WhatsApp Mailer":
     st.markdown("<h1 class='main-header'>Role WhatsApp Group Mailer</h1>", unsafe_allow_html=True)
-    st.write(
-        "Upload candidate CSV. Roles are normalised and matched to default group links "
-        "stored in Settings, then confirmation emails are sent."
+    st.markdown(
+        "<p class='view-desc'>Upload candidate CSV. Roles are automatically normalized and mapped to dedicated WhatsApp group links from Settings, after which seat confirmation emails are dispatched.</p>",
+        unsafe_allow_html=True
     )
+
 
     with get_db_session() as db:
         smtp_config = {
@@ -1229,9 +1529,9 @@ elif view == "💬 Role WhatsApp Mailer":
 # ═════════════════════════════════════════════════════════════════════════════
 elif view == "💬 CSV WhatsApp Invites":
     st.markdown("<h1 class='main-header'>CSV WhatsApp Invites</h1>", unsafe_allow_html=True)
-    st.write(
-        "Upload a CSV with custom WhatsApp links per candidate. "
-        "Completely separate from the main database — stored in session memory only."
+    st.markdown(
+        "<p class='view-desc'>Upload a CSV containing custom WhatsApp links per candidate. Candidate records are isolated to session memory without altering main database links.</p>",
+        unsafe_allow_html=True
     )
 
     with get_db_session() as db:
@@ -1248,7 +1548,14 @@ elif view == "💬 CSV WhatsApp Invites":
             "html":    SystemSetting.get(db, "confirm_html",    emailer.CONFIRM_EMAIL_HTML)
         }
 
-    st.write("**Required columns:** `Full Name`, `Email Address`, `Internship Role`, `Internship ID`, `WhatsApp Link`  (Optional: `Phone Number`)")
+    st.markdown("""
+    <div class="card">
+        <strong>📋 Required CSV columns:</strong><br>
+        <code>Full Name</code> &nbsp;·&nbsp; <code>Email Address</code> &nbsp;·&nbsp; <code>Internship Role</code> &nbsp;·&nbsp; <code>Internship ID</code> &nbsp;·&nbsp; <code>WhatsApp Link</code><br>
+        <span style="opacity:0.85;font-size:0.86rem;margin-top:4px;display:inline-block;">Optional column: <code>Phone Number</code> (enables direct WhatsApp click-to-chat)</span>
+    </div>
+    """, unsafe_allow_html=True)
+
     uploaded_invite_csv = st.file_uploader("Upload Invites CSV", type=[".csv"], key="invite_csv_uploader")
 
     if uploaded_invite_csv:
@@ -1412,17 +1719,15 @@ elif view == "💬 CSV WhatsApp Invites":
 # ═════════════════════════════════════════════════════════════════════════════
 elif view == "🔲 Certificate QR Generator":
     st.markdown("<h1 class='main-header'>Certificate QR Code Generator</h1>", unsafe_allow_html=True)
-    st.write(
-        "Upload a CSV with Internship IDs and a ZIP containing PDF certificates. "
-        "The system will generate a QR code for each certificate, overlay it on the PDF, "
-        "and provide a ZIP containing the updated certificates."
+    st.markdown(
+        "<p class='view-desc'>Upload a candidate CSV and a ZIP containing PDF certificates. The system generates unique QR codes for each certificate, overlays them at exact coordinates, and exports updated PDFs in a ZIP.</p>",
+        unsafe_allow_html=True
     )
 
     st.markdown("""
     <div class="card">
-        <strong>Required CSV column:</strong>
-        <code>Internship ID</code><br>
-        <strong>Note:</strong> PDF filenames must exactly match the Internship ID (e.g. <code>ZYNVEX-FE-1042.pdf</code>).
+        <strong>📋 Required CSV column:</strong> <code>Internship ID</code><br>
+        <span style="opacity:0.85;font-size:0.86rem;margin-top:4px;display:inline-block;"><strong>Note:</strong> PDF filenames in the ZIP must match the Internship ID (e.g. <code>ZYNVEX-FE-1042.pdf</code>).</span>
     </div>
     """, unsafe_allow_html=True)
 
@@ -1484,15 +1789,14 @@ elif view == "🔲 Certificate QR Generator":
         up_col1, up_col2 = st.columns([2, 1])
         with up_col1:
             st.markdown(
-                f"<div style='background:#F2ECFA;border:1px solid #D5C9F0;border-radius:8px;"
-                f"padding:10px 14px;margin-bottom:10px;'>"
-                f"<strong style='color:#5E4B7A;'>📦 Certificates ZIP Ready</strong><br>"
-                f"<span style='font-size:12px;color:#666;'>{up_name}</span><br>"
-                f"<span style='font-size:12px;color:#333;font-weight:600;'>"
-                f"Size: {human_readable_size(up_size)}</span>"
-                f"</div>",
+                f"""<div class="status-card">
+                    <div class="status-card-header">📦 Certificates ZIP Ready</div>
+                    <div class="status-card-filename">{up_name}</div>
+                    <div class="status-card-meta">Size: {human_readable_size(up_size)}</div>
+                </div>""",
                 unsafe_allow_html=True
             )
+
         with up_col2:
             st.metric("Upload Status", "✅ 100 %", "File received")
         st.divider()
@@ -1636,10 +1940,11 @@ elif view == "🔲 Certificate QR Generator":
 # ═════════════════════════════════════════════════════════════════════════════
 elif view == "🧹 CSV Deduplicator & Formatter":
     st.markdown("<h1 class='main-header'>CSV Deduplicator & Formatter</h1>", unsafe_allow_html=True)
-    st.write(
-        "Upload a CSV file. This tool will format the columns and remove duplicate records "
-        "based on **Email Address** or **Phone Number**, keeping the most complete entry."
+    st.markdown(
+        "<p class='view-desc'>Upload a raw CSV file. The tool normalizes column schemas, standardizes role names, and eliminates duplicates by <strong>Email Address</strong> and <strong>Phone Number</strong>, retaining the highest-completeness record.</p>",
+        unsafe_allow_html=True
     )
+
 
     uploaded_csv = st.file_uploader("Upload Raw CSV", type=[".csv"], key="dedup_csv")
 
@@ -1887,16 +2192,17 @@ elif view == "⚙️ Portal Settings":
                     if i + j < len(links_list):
                         item = links_list[i + j]
                         cc.markdown(
-                            f"""<div style="border:1px solid #D5C9F0;border-radius:8px;
-                                padding:14px 16px;background:#F7F4FC;margin-bottom:10px;">
-                                <div style="font-weight:700;color:#5E4B7A;font-size:14px;
-                                     margin-bottom:6px;">💬 {item['role']}</div>
-                                <div style="font-size:12px;color:#555;word-break:break-all;">
-                                <a href="{item['group_link']}" target="_blank"
-                                   style="color:#7C6A9E;">{item['group_link']}</a></div>
-                                </div>""",
+                            f"""<div class="link-card">
+                                <div class="link-card-role">💬 {item['role']}</div>
+                                <div class="link-card-url">
+                                    <a href="{item['group_link']}" target="_blank" rel="noopener noreferrer">
+                                        🔗 {item['group_link']}
+                                    </a>
+                                </div>
+                            </div>""",
                             unsafe_allow_html=True
                         )
+
         else:
             st.info("No program links configured yet. Add one below.")
 
@@ -2004,13 +2310,13 @@ elif view == "⚙️ Portal Settings":
 
         # Variable reference badge
         st.markdown(
-            f"<div style='background:#F2ECFA;border-left:4px solid #7C6A9E;"
-            f"border-radius:4px;padding:10px 14px;margin-bottom:12px;font-size:13px;'>"
-            f"<strong>Supported placeholders:</strong> {placeholder_info}<br>"
-            f"<span style='color:#777;'>Replaced with real candidate data when emails are sent.</span>"
-            f"</div>",
+            f"""<div class="info-banner">
+                <strong>Supported placeholders:</strong> {placeholder_info}<br>
+                <span class="info-banner-sub">Replaced automatically with real candidate data when emails are dispatched.</span>
+            </div>""",
             unsafe_allow_html=True
         )
+
 
         st.divider()
 
@@ -2092,15 +2398,15 @@ elif view == "⚙️ Portal Settings":
             qr_margin_def= int(SystemSetting.get(db, "qr_bottom_margin", "60"))
 
         st.markdown(
-            f"<div style='background:#F2ECFA;border-left:4px solid #7C6A9E;"
-            f"border-radius:4px;padding:10px 14px;margin-bottom:16px;font-size:13px;'>"
-            f"<strong>Current saved defaults:</strong><br>"
-            f"&nbsp;&nbsp;• X Coordinate: <code>{qr_x_def}</code> points<br>"
-            f"&nbsp;&nbsp;• QR Width: <code>{qr_width_def}</code> points<br>"
-            f"&nbsp;&nbsp;• Bottom Margin: <code>{qr_margin_def}</code> points"
-            f"</div>",
+            f"""<div class="info-banner">
+                <strong>Current saved defaults:</strong><br>
+                &nbsp;&nbsp;• X Coordinate: <code>{qr_x_def}</code> points<br>
+                &nbsp;&nbsp;• QR Width: <code>{qr_width_def}</code> points<br>
+                &nbsp;&nbsp;• Bottom Margin: <code>{qr_margin_def}</code> points
+            </div>""",
             unsafe_allow_html=True
         )
+
 
         with st.form("settings_qr_form"):
             c1, c2, c3 = st.columns(3)
@@ -2160,20 +2466,17 @@ elif view == "⚙️ Portal Settings":
         )
 
         st.markdown(
-            """
-<div style='background:#EAF4EA;border-left:4px solid #4CAF50;border-radius:4px;
-     padding:12px 16px;margin-bottom:16px;font-size:13px;'>
-<strong>How persistent storage works on Streamlit Community Cloud:</strong><br>
+            """<div class="success-banner">
+<strong>💡 How persistent storage works on Streamlit Community Cloud:</strong><br>
 1. <strong>Save</strong> any WhatsApp link or email template in the tabs above.<br>
 2. A <code>persistent_settings.json</code> is automatically written to the repo folder.<br>
-3. <strong>Download</strong> it below and <code>git add persistent_settings.json &amp;&amp; git commit &amp;&amp; git push</code>.<br>
-4. On every future cold boot (sleep, redeploy, restart) the app detects this file
-   and restores all your settings automatically — no DB needed.<br><br>
-<em>Alternatively, set a <code>DATABASE_URL</code> secret (Neon / Supabase / Railway)
-for a fully managed external database.</em>
+3. <strong>Download</strong> it below and commit it to GitHub (<code>git add persistent_settings.json &amp;&amp; git commit &amp;&amp; git push</code>).<br>
+4. On every future cold boot, restart, or sleep cycle, the app restores all your settings automatically — zero data loss.<br><br>
+<em>Tip: Alternatively, configure a <code>DATABASE_URL</code> secret (Neon / Supabase / Railway) for a managed cloud database with zero commits needed.</em>
 </div>""",
             unsafe_allow_html=True
         )
+
 
         db_info = get_db_info()
         info_cols = st.columns(3)
