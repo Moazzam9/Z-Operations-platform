@@ -175,29 +175,26 @@ def _db_has_any_user_data(db) -> bool:
 
 def seed_database_once():
     """
-    Seed default records ONLY on the VERY FIRST database boot.
+    Called at application startup.
 
-    Priority order on a fresh/empty database:
-      1. If ``persistent_settings.json`` exists on disk  → restore user's saved
-         templates and WhatsApp links from it (overrides hard-coded defaults).
-         This is the PRIMARY persistence mechanism for Streamlit Community Cloud.
-      2. If no backup exists                             → insert hard-coded
-         factory defaults (WA links, SMTP, templates, QR).
-      3. Write the sentinel so this is a one-shot per DB file.
-
-    On subsequent boots the sentinel exits early and nothing is re-seeded.
+    Persistence & Seeding Strategy:
+      1. If ``persistent_settings.json`` exists on disk:
+         ALWAYS load and import it into the active database!
+         This guarantees that any email templates (Offer Letter, Confirmation, etc.)
+         and WhatsApp links saved by the user and committed to the Git repo are
+         immediately restored into the database, even across Streamlit sleep cycles,
+         cold boots, reboots, and redeployments.
+      2. For any settings / WhatsApp links that are still missing:
+         Populate them with built-in factory defaults.
+      3. Set the sentinel marker so the DB is fully initialized.
+      4. If persistent_settings.json didn't exist yet, write the initial snapshot to disk.
     """
     if not _db_ok:
         return
 
     try:
         with get_db_session() as db:
-            sentinel = SystemSetting.get(db, _SEED_SENTINEL_KEY, None)
-            if sentinel is not None:
-                # DB already seeded — nothing to do.
-                return
-
-            # ── STEP 1: try to restore from persistent JSON backup ──────────
+            # ── STEP 1: ALWAYS restore from persistent JSON backup if present ──
             json_backup = load_settings_from_disk()
             if json_backup:
                 try:
@@ -207,16 +204,11 @@ def seed_database_once():
                         f"[seed_database_once] Restored from persistent_settings.json: "
                         f"{wa_n} WA links, {ss_n} settings."
                     )
-                    # Even if we restored from backup, still apply any keys that
-                    # the backup might be missing (e.g. newly added settings).
                 except Exception as restore_err:
                     import warnings
                     warnings.warn(f"[seed_database_once] JSON restore failed: {restore_err}")
-                    json_backup = None   # Fall through to factory defaults
 
-            # ── STEP 2: apply factory defaults for any keys still missing ───
-            already_modified = _db_has_any_user_data(db)
-
+            # ── STEP 2: Fill in factory defaults for any keys still missing ────
             default_links = {
                 "Frontend Development":    "https://chat.whatsapp.com/HvHKMvs6bXfFhF0y1r73dy",
                 "Full Stack Development":  "https://chat.whatsapp.com/HeO8K1zT6aH121wZ5N1QWI",
@@ -227,10 +219,9 @@ def seed_database_once():
                 "AI / Machine Learning":   "https://chat.whatsapp.com/FtRXZcE4qsOGZmgX2o8FJT",
                 "Mobile App Development":  "https://chat.whatsapp.com/GryFrlVAOrI0irEjottsVh"
             }
-            if not already_modified:
-                for role, url in default_links.items():
-                    if not db.query(WhatsAppLink).filter_by(role=role).first():
-                        db.add(WhatsAppLink(role=role, group_link=url))
+            for role, url in default_links.items():
+                if not db.query(WhatsAppLink).filter_by(role=role).first():
+                    db.add(WhatsAppLink(role=role, group_link=url))
 
             smtp_defaults = {
                 "smtp_host":     "smtp.gmail.com",
@@ -264,9 +255,14 @@ def seed_database_once():
                     db.add(SystemSetting(key=key, value=val))
 
             SystemSetting.set(db, _SEED_SENTINEL_KEY, _SEED_VERSION)
+
+            # Ensure persistent_settings.json exists on disk if it wasn't there before
+            if not json_backup:
+                sync_settings_to_disk(db)
     except Exception as e:
         import warnings
         warnings.warn(f"[seed_database_once] seed skipped: {e}")
+
 
 
 _DB_SEED_RAN = False
@@ -2063,9 +2059,13 @@ elif view == "⚙️ Portal Settings":
                     ok, msg = save_and_verify_system_settings(defaults)
                     if ok:
                         st.success("Reset to built-in default & verified.")
+                        st.session_state.pop(f"ed_subject_{is_offer}", None)
+                        st.session_state.pop(f"ed_html_{is_offer}", None)
+                        st.session_state.pop(f"ed_plain_{is_offer}", None)
                     else:
                         st.warning(msg)
                     st.rerun()
+
 
         with preview_col:
             st.markdown("**Live Preview** *(with sample data)*")
