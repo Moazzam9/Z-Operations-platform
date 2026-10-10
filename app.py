@@ -463,6 +463,19 @@ def _db_has_any_user_data(db) -> bool:
     ) or (wa_count > 0 and wa_count != len(default_wa_keys))
 
 
+def _safe_format_template(template: str, **kwargs) -> str:
+    """
+    Safely substitute {placeholder} values in email/plain templates
+    without breaking CSS curly braces (e.g. margin:0; padding:0 inside
+    @media queries or HTML style blocks).  Only exact {key} tokens for
+    the supplied keyword arguments are replaced; everything else is left
+    untouched.
+    """
+    for key, value in kwargs.items():
+        template = template.replace("{" + key + "}", str(value))
+    return template
+
+
 def seed_database_once():
     """
     Called at application startup.
@@ -1378,8 +1391,8 @@ elif view == "✉️ Offer Letter Mailer":
                                 smtp_config=smtp_config,
                                 to_email=cand["Email"],
                                 subject=offer_templates["subject"],
-                                plain_body=offer_templates["plain"].format(name=cand["Full Name"]),
-                                html_body=offer_templates["html"].format(name=cand["Full Name"]),
+                                plain_body=_safe_format_template(offer_templates["plain"], name=cand["Full Name"]),
+                                html_body=_safe_format_template(offer_templates["html"], name=cand["Full Name"]),
                                 attachment_path=cand["PDF Path"]
                             )
                             sent += 1
@@ -1500,13 +1513,15 @@ elif view == "💬 Role WhatsApp Mailer":
                             smtp_config=smtp_config,
                             to_email=cand["Email"],
                             subject=confirm_templates["subject"],
-                            plain_body=confirm_templates["plain"].format(
+                            plain_body=_safe_format_template(
+                                confirm_templates["plain"],
                                 name=cand["Full Name"],
                                 role=cand["Normalised Role"],
                                 internship_id=cand["Internship ID"],
                                 group_link=cand["WhatsApp Group Link"]
                             ),
-                            html_body=confirm_templates["html"].format(
+                            html_body=_safe_format_template(
+                                confirm_templates["html"],
                                 name=cand["Full Name"],
                                 role=cand["Normalised Role"],
                                 internship_id=cand["Internship ID"],
@@ -1632,13 +1647,15 @@ elif view == "💬 CSV WhatsApp Invites":
                             smtp_config=smtp_config,
                             to_email=cand["Email Address"],
                             subject=confirm_templates["subject"],
-                            plain_body=confirm_templates["plain"].format(
+                            plain_body=_safe_format_template(
+                                confirm_templates["plain"],
                                 name=cand["Full Name"],
                                 role=cand["Internship Role"],
                                 internship_id=cand["Internship ID"],
                                 group_link=cand["WhatsApp Link"]
                             ),
-                            html_body=confirm_templates["html"].format(
+                            html_body=_safe_format_template(
+                                confirm_templates["html"],
                                 name=cand["Full Name"],
                                 role=cand["Internship Role"],
                                 internship_id=cand["Internship ID"],
@@ -1687,13 +1704,15 @@ elif view == "💬 CSV WhatsApp Invites":
                             smtp_config=smtp_config,
                             to_email=cand["Email Address"],
                             subject=confirm_templates["subject"],
-                            plain_body=confirm_templates["plain"].format(
+                            plain_body=_safe_format_template(
+                                confirm_templates["plain"],
                                 name=cand["Full Name"],
                                 role=cand["Internship Role"],
                                 internship_id=cand["Internship ID"],
                                 group_link=cand["WhatsApp Link"]
                             ),
-                            html_body=confirm_templates["html"].format(
+                            html_body=_safe_format_template(
+                                confirm_templates["html"],
                                 name=cand["Full Name"],
                                 role=cand["Internship Role"],
                                 internship_id=cand["Internship ID"],
